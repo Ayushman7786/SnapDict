@@ -24,6 +24,7 @@ struct TranslationContentView: View {
     @State private var examplesError: String?
     @State private var mnemonicTask: Task<Void, Never>?
     @State private var examplesTask: Task<Void, Never>?
+    @State private var correctionDismissed = false
 
     private let synthesizer = AVSpeechSynthesizer()
 
@@ -150,16 +151,8 @@ struct TranslationContentView: View {
 
     @ViewBuilder
     private func resultView(_ result: TranslationResult) -> some View {
-        // 拼写纠正提醒
-        if let correctedFrom = result.correctedFrom {
-            HStack(spacing: 4) {
-                Image(systemName: "character.cursor.ibeam")
-                    .font(.system(size: 12))
-                Text("已自动纠正: \"\(correctedFrom)\" → \"\(result.word)\"")
-                    .font(.system(size: 13))
-            }
-            .foregroundStyle(.secondary)
-        }
+        // 拼写纠正提示
+        correctionBanner(result)
 
         // Word + phonetic + save button
         HStack(alignment: .center) {
@@ -211,10 +204,61 @@ struct TranslationContentView: View {
         examplesSection(result)
     }
 
+    @ViewBuilder
+    private func correctionBanner(_ result: TranslationResult) -> some View {
+        if let originalInput = result.originalInput {
+            // 自动纠正已执行：显示纠正信息 + 回退按钮
+            HStack(spacing: 6) {
+                Image(systemName: "character.cursor.ibeam")
+                    .font(.system(size: 12))
+                Text("已自动纠正: \"\(originalInput)\" → \"\(result.word)\"")
+                    .font(.system(size: 13))
+                Spacer()
+                Button {
+                    queryWithOriginalInput(originalInput)
+                } label: {
+                    Text("仍查询 \(originalInput)")
+                        .font(.system(size: 12))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.accentColor)
+            }
+            .foregroundStyle(.secondary)
+        } else if let suggestion = result.suggestedCorrection, !correctionDismissed {
+            // 未自动纠正但检测到可能拼写错误：提示用户
+            HStack(spacing: 6) {
+                Image(systemName: "exclamationmark.circle")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.orange)
+                Text("可能拼写有误，你要找的是 \"\(suggestion)\" 吗？")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button {
+                    queryWithSuggestion(suggestion)
+                } label: {
+                    Text("查询 \(suggestion)")
+                        .font(.system(size: 12))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.accentColor)
+                Button {
+                    correctionDismissed = true
+                } label: {
+                    Text("忽略")
+                        .font(.system(size: 12))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+            }
+        }
+    }
+
     private func performTranslation() {
         let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
 
+        correctionDismissed = false
         isLoading = true
         errorMessage = nil
         result = nil
@@ -323,6 +367,7 @@ struct TranslationContentView: View {
         mnemonicError = nil
         examplesError = nil
         isSaved = false
+        correctionDismissed = false
     }
 
     private func speakWord(_ word: String) {
@@ -549,6 +594,20 @@ struct TranslationContentView: View {
             }
             self.isExamplesLoading = false
         }
+    }
+
+    /// 用户选择使用原始输入重新查询（不纠正）
+    private func queryWithOriginalInput(_ text: String) {
+        query = text
+        debounceTask?.cancel()
+        performTranslation()
+    }
+
+    /// 用户选择使用建议的纠正词查询
+    private func queryWithSuggestion(_ text: String) {
+        query = text
+        debounceTask?.cancel()
+        performTranslation()
     }
 
     private func toggleSaveWord(_ result: TranslationResult) {
