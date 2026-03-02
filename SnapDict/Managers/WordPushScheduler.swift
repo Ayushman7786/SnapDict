@@ -57,14 +57,31 @@ final class WordPushScheduler {
 
         do {
             let deviceId = try await resolveDeviceId()
-            let payload = DotScreenService.PushPayload(
-                word: entry.word,
-                phonetic: entry.phonetic,
-                translation: entry.translation,
-                firstExample: entry.examples.first
-            )
+            let modeRaw = UserDefaults.standard.string(forKey: Constants.UserDefaultsKey.pushMode) ?? ""
+            let pushMode = Constants.PushMode(rawValue: modeRaw) ?? Constants.Defaults.pushMode
             let taskKey = UserDefaults.standard.string(forKey: Constants.UserDefaultsKey.cachedTaskKey)
-            try await DotScreenService.shared.pushWord(payload, to: deviceId, taskKey: taskKey)
+
+            switch pushMode {
+            case .image:
+                guard let pngData = WordCardRenderer.render(
+                    word: entry.word,
+                    phonetic: entry.phonetic,
+                    translation: entry.translation
+                ) else {
+                    lastError = "图片渲染失败"
+                    return
+                }
+                let base64 = pngData.base64EncodedString()
+                try await DotScreenService.shared.pushImage(base64, to: deviceId, taskKey: taskKey)
+            case .text:
+                let payload = DotScreenService.PushPayload(
+                    word: entry.word,
+                    phonetic: entry.phonetic,
+                    translation: entry.translation,
+                    firstExample: entry.examples.first
+                )
+                try await DotScreenService.shared.pushWord(payload, to: deviceId, taskKey: taskKey)
+            }
             try WordBookManager.shared.markPushed(entry)
             lastPushTime = .now
         } catch {
