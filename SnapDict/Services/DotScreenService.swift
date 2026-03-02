@@ -125,6 +125,41 @@ final class DotScreenService: Sendable {
             throw DotError.requestFailed
         }
     }
+
+    func pushImage(_ base64Image: String, to deviceId: String, taskKey: String? = nil) async throws {
+        guard let apiKey = UserDefaults.standard.string(forKey: Constants.UserDefaultsKey.dotAPIKey),
+              !apiKey.isEmpty else {
+            throw DotError.noAPIKey
+        }
+
+        let path = Constants.API.dotImagePath(deviceId: deviceId)
+        guard let url = URL(string: Constants.API.dotBaseURL + path) else {
+            throw DotError.invalidURL
+        }
+
+        var body: [String: Any] = [
+            "refreshNow": true,
+            "image": base64Image,
+            "border": 0,
+            "ditherType": "NONE"
+        ]
+        if let taskKey, !taskKey.isEmpty {
+            body["taskKey"] = taskKey
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        request.timeoutInterval = 30
+
+        let (_, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw DotError.requestFailed
+        }
+    }
 }
 
 enum DotError: LocalizedError {
