@@ -2,9 +2,9 @@
 
 # SnapDict
 
-**macOS AI 划词翻译词典 | AI-Powered Dictionary for macOS**
+**macOS AI 翻译词典 | AI-Powered Dictionary for macOS**
 
-快捷键划词翻译，AI 智能助记，单词本复习，语音朗读，墨水屏推送
+快捷键呼出翻译面板，AI 智能助记，单词本复习，语音朗读，墨水屏推送
 
 [![Release](https://img.shields.io/github/v/release/zzpuser/SnapDict)](https://github.com/zzpuser/SnapDict/releases/latest)
 [![License](https://img.shields.io/github/license/zzpuser/SnapDict)](LICENSE)
@@ -19,7 +19,7 @@
 
 ## 功能特性
 
-- **划词翻译** — 全局快捷键唤起翻译面板，支持中英互译
+- **快捷键翻译** — 全局快捷键呼出翻译面板，支持中英互译
 - **AI 智能助记** — 基于 DeepSeek AI 生成词根词缀分析和联想记忆法
 - **拼写纠正** — 自动检测拼写错误，支持自动纠正或手动选择
 - **单词本** — 收藏生词，随时复习
