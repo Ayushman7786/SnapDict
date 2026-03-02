@@ -13,6 +13,9 @@ enum Constants {
         static func dotTaskListPath(deviceId: String, taskType: String = "loop") -> String {
             "/api/authV2/open/device/\(deviceId)/\(taskType)/list"
         }
+        static func dotImagePath(deviceId: String) -> String {
+            "/api/authV2/open/device/\(deviceId)/image"
+        }
 
         static let byteDanceTTSEndpoint = "https://openspeech.bytedance.com/api/v3/tts/unidirectional"
         static let byteDanceTTSResourceId = "seed-tts-2.0"
@@ -31,6 +34,18 @@ enum Constants {
             switch self {
             case .system: return "系统发音"
             case .byteDance: return "豆包语音"
+            }
+        }
+    }
+
+    enum PushMode: String, CaseIterable {
+        case text = "text"
+        case image = "image"
+
+        var displayName: String {
+            switch self {
+            case .text: return "文本"
+            case .image: return "图片"
             }
         }
     }
@@ -55,6 +70,7 @@ enum Constants {
         static let byteDanceTTSVoice = "byteDanceTTSVoice"
         static let hideOnFocusLost = "hideOnFocusLost"
         static let autoCorrect = "autoCorrect"
+        static let pushMode = "pushMode"
     }
 
     enum Defaults {
@@ -66,6 +82,7 @@ enum Constants {
         static let ttsFallbackToSystem = true
         static let hideOnFocusLost = true
         static let autoCorrect = false
+        static let pushMode: PushMode = .text
     }
 
     enum Notification {

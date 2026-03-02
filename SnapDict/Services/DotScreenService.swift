@@ -18,6 +18,7 @@ struct DotTask: Codable, Sendable, Identifiable {
     var id: String { key ?? type }
 
     var isTextAPI: Bool { type == "TEXT_API" }
+    var isImageAPI: Bool { type == "IMAGE_API" }
 }
 
 @Observable
