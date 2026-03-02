@@ -9,10 +9,11 @@ final class DeepSeekService: Sendable {
     // MARK: - 独立查询方法
 
     /// 只请求单词释义（不含助记和例句）
-    func translateWord(_ text: String, skipCache: Bool = false) async throws -> TranslationResult {
+    func translateWord(_ text: String, skipCache: Bool = false, forceNoAutoCorrect: Bool = false) async throws -> TranslationResult {
         let normalizedText = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        let autoCorrect = UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.autoCorrect) as? Bool
-            ?? Constants.Defaults.autoCorrect
+        let autoCorrect = forceNoAutoCorrect ? false :
+            (UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.autoCorrect) as? Bool
+                ?? Constants.Defaults.autoCorrect)
 
         if !skipCache, let cached = CacheService.shared.getCachedTranslation(for: normalizedText) {
             if !cached.word.isEmpty && !cached.phonetic.isEmpty && !cached.translation.isEmpty {

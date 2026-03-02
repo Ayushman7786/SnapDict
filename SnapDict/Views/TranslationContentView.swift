@@ -254,7 +254,7 @@ struct TranslationContentView: View {
         }
     }
 
-    private func performTranslation() {
+    private func performTranslation(forceNoAutoCorrect: Bool = false) {
         let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
 
@@ -273,7 +273,7 @@ struct TranslationContentView: View {
         translationTask = Task {
             // 阶段 1：查词
             do {
-                let translationResult = try await DeepSeekService.shared.translateWord(text)
+                let translationResult = try await DeepSeekService.shared.translateWord(text, forceNoAutoCorrect: forceNoAutoCorrect)
                 guard !Task.isCancelled else { return }
                 self.result = translationResult
                 self.isLoading = false
@@ -596,11 +596,11 @@ struct TranslationContentView: View {
         }
     }
 
-    /// 用户选择使用原始输入重新查询（不纠正）
+    /// 用户选择使用原始输入重新查询（强制不纠正）
     private func queryWithOriginalInput(_ text: String) {
         query = text
         debounceTask?.cancel()
-        performTranslation()
+        performTranslation(forceNoAutoCorrect: true)
     }
 
     /// 用户选择使用建议的纠正词查询
