@@ -7,11 +7,6 @@ final class DeepSeekService: Sendable {
     private init() {}
 
     func translate(_ text: String, skipCache: Bool = false) async throws -> TranslationResult {
-        guard let apiKey = UserDefaults.standard.string(forKey: Constants.UserDefaultsKey.deepSeekAPIKey),
-              !apiKey.isEmpty else {
-            throw TranslationError.noAPIKey
-        }
-
         let enableMnemonic = UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.enableMnemonic) as? Bool
             ?? Constants.Defaults.enableMnemonic
         let showExamples = UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.showExamples) as? Bool
@@ -64,6 +59,25 @@ final class DeepSeekService: Sendable {
         输入：\(text)
         """
 
+        let cleaned = try await callAPI(prompt: prompt)
+
+        guard let resultData = cleaned.data(using: .utf8) else {
+            throw TranslationError.parseError
+        }
+
+        let translationResult = try JSONDecoder().decode(TranslationResult.self, from: resultData)
+        CacheService.shared.cacheTranslation(translationResult)
+        return translationResult
+    }
+
+    // MARK: - Private
+
+    private func callAPI(prompt: String) async throws -> String {
+        guard let apiKey = UserDefaults.standard.string(forKey: Constants.UserDefaultsKey.deepSeekAPIKey),
+              !apiKey.isEmpty else {
+            throw TranslationError.noAPIKey
+        }
+
         let requestBody: [String: Any] = [
             "model": Constants.API.deepSeekModel,
             "temperature": 0.1,
@@ -100,19 +114,11 @@ final class DeepSeekService: Sendable {
             throw TranslationError.parseError
         }
 
-        let cleaned = content
+        return content
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: "```json", with: "")
             .replacingOccurrences(of: "```", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard let resultData = cleaned.data(using: .utf8) else {
-            throw TranslationError.parseError
-        }
-
-        let translationResult = try JSONDecoder().decode(TranslationResult.self, from: resultData)
-        CacheService.shared.cacheTranslation(translationResult)
-        return translationResult
     }
 }
 
