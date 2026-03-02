@@ -55,6 +55,7 @@ struct PanelSettingsView: View {
     @State private var isRecordingShortcut = false
     @State private var enableMnemonic: Bool = Constants.Defaults.enableMnemonic
     @State private var showExamples: Bool = Constants.Defaults.showExamples
+    @State private var hideOnFocusLost: Bool = Constants.Defaults.hideOnFocusLost
     @State private var eventMonitor: Any?
 
     // API test states
@@ -123,7 +124,7 @@ struct PanelSettingsView: View {
                                 savedKey: $savedDeepSeekKey,
                                 saveState: $deepSeekSaveState,
                                 setState: { deepSeekTestState = $0 },
-                                action: { _ = try await DeepSeekService.shared.translate("hello") }
+                                action: { _ = try await DeepSeekService.shared.translateWord("hello") }
                             )
                         },
                         onTest: { testDeepSeek() }
@@ -133,15 +134,18 @@ struct PanelSettingsView: View {
 
                     Divider().padding(.leading, 14)
 
-                    Toggle("显示助记", isOn: $enableMnemonic)
-                        .toggleStyle(.switch)
-                        .onChange(of: enableMnemonic) { _, newValue in
-                            UserDefaults.standard.set(newValue, forKey: Constants.UserDefaultsKey.enableMnemonic)
-                        }
-                        .fixedSize()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
+                    HStack {
+                        Text("显示助记")
+                        Spacer()
+                        Toggle("", isOn: $enableMnemonic)
+                            .toggleStyle(.switch)
+                            .labelsHidden()
+                            .onChange(of: enableMnemonic) { _, newValue in
+                                UserDefaults.standard.set(newValue, forKey: Constants.UserDefaultsKey.enableMnemonic)
+                            }
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
 
 //                    Text("开启后显示词根词缀拆解和联想记忆")
 //                        .font(.system(size: 11))
@@ -152,15 +156,33 @@ struct PanelSettingsView: View {
 
                     Divider().padding(.leading, 14)
 
-                    Toggle("显示例句", isOn: $showExamples)
-                        .toggleStyle(.switch)
-                        .onChange(of: showExamples) { _, newValue in
-                            UserDefaults.standard.set(newValue, forKey: Constants.UserDefaultsKey.showExamples)
-                        }
-                        .fixedSize()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
+                    HStack {
+                        Text("显示例句")
+                        Spacer()
+                        Toggle("", isOn: $showExamples)
+                            .toggleStyle(.switch)
+                            .labelsHidden()
+                            .onChange(of: showExamples) { _, newValue in
+                                UserDefaults.standard.set(newValue, forKey: Constants.UserDefaultsKey.showExamples)
+                            }
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+
+                    Divider().padding(.leading, 14)
+
+                    HStack {
+                        Text("失去焦点自动关闭")
+                        Spacer()
+                        Toggle("", isOn: $hideOnFocusLost)
+                            .toggleStyle(.switch)
+                            .labelsHidden()
+                            .onChange(of: hideOnFocusLost) { _, newValue in
+                                UserDefaults.standard.set(newValue, forKey: Constants.UserDefaultsKey.hideOnFocusLost)
+                            }
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
                 }
                 .background(.background.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
                 .padding(.horizontal, 14)
@@ -385,15 +407,18 @@ struct PanelSettingsView: View {
 
                     Divider().padding(.leading, 14)
 
-                    Toggle("只推送学习中", isOn: $pushOnlyLearning)
-                        .toggleStyle(.switch)
-                        .onChange(of: pushOnlyLearning) { _, newValue in
-                            UserDefaults.standard.set(newValue, forKey: Constants.UserDefaultsKey.pushOnlyLearning)
-                        }
-                        .fixedSize()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
+                    HStack {
+                        Text("只推送学习中")
+                        Spacer()
+                        Toggle("", isOn: $pushOnlyLearning)
+                            .toggleStyle(.switch)
+                            .labelsHidden()
+                            .onChange(of: pushOnlyLearning) { _, newValue in
+                                UserDefaults.standard.set(newValue, forKey: Constants.UserDefaultsKey.pushOnlyLearning)
+                            }
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
                 }
                 .background(.background.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
                 .padding(.horizontal, 14)
@@ -687,7 +712,7 @@ struct PanelSettingsView: View {
             savedKey: savedDeepSeekKey,
             defaultsKey: Constants.UserDefaultsKey.deepSeekAPIKey,
             setState: { deepSeekTestState = $0 },
-            action: { _ = try await DeepSeekService.shared.translate("hello") }
+            action: { _ = try await DeepSeekService.shared.translateWord("hello") }
         )
     }
 
@@ -963,6 +988,8 @@ struct PanelSettingsView: View {
             ?? Constants.Defaults.enableMnemonic
         showExamples = UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.showExamples) as? Bool
             ?? Constants.Defaults.showExamples
+        hideOnFocusLost = UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.hideOnFocusLost) as? Bool
+            ?? Constants.Defaults.hideOnFocusLost
         selectedTaskKey = UserDefaults.standard.string(forKey: Constants.UserDefaultsKey.cachedTaskKey) ?? ""
         selectedDeviceId = UserDefaults.standard.string(forKey: Constants.UserDefaultsKey.cachedDeviceId) ?? ""
         // 有 Key 时自动连接获取设备
