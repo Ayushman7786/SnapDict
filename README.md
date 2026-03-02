@@ -2,6 +2,8 @@
 
 macOS 菜单栏翻译词典应用，基于 AI 提供智能翻译、助记和发音功能。
 
+![SnapDict 翻译面板](screenshots/translation.png)
+
 ## 功能
 
 - **划词翻译** — 全局快捷键唤起翻译面板，支持中英互译
