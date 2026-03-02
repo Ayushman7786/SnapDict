@@ -53,6 +53,51 @@ final class CacheService: @unchecked Sendable {
         }
     }
 
+    func updateCachedMnemonic(for word: String, etymology: String?, association: String?) {
+        let key = normalizeKey(word)
+        queue.sync {
+            guard let container = modelContainer else { return }
+            let context = ModelContext(container)
+            let descriptor = FetchDescriptor<TranslationCache>(
+                predicate: #Predicate { $0.word == key }
+            )
+            guard let cached = try? context.fetch(descriptor).first,
+                  let data = cached.jsonData.data(using: .utf8),
+                  var result = try? JSONDecoder().decode(TranslationResult.self, from: data) else {
+                return
+            }
+            result.etymology = etymology
+            result.association = association
+            if let jsonData = try? JSONEncoder().encode(result),
+               let jsonString = String(data: jsonData, encoding: .utf8) {
+                cached.jsonData = jsonString
+                try? context.save()
+            }
+        }
+    }
+
+    func updateCachedExamples(for word: String, examples: [String]) {
+        let key = normalizeKey(word)
+        queue.sync {
+            guard let container = modelContainer else { return }
+            let context = ModelContext(container)
+            let descriptor = FetchDescriptor<TranslationCache>(
+                predicate: #Predicate { $0.word == key }
+            )
+            guard let cached = try? context.fetch(descriptor).first,
+                  let data = cached.jsonData.data(using: .utf8),
+                  var result = try? JSONDecoder().decode(TranslationResult.self, from: data) else {
+                return
+            }
+            result.examples = examples
+            if let jsonData = try? JSONEncoder().encode(result),
+               let jsonString = String(data: jsonData, encoding: .utf8) {
+                cached.jsonData = jsonString
+                try? context.save()
+            }
+        }
+    }
+
     func clearTranslationCache() {
         queue.sync {
             guard let container = modelContainer else { return }
