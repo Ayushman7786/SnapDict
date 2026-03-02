@@ -74,15 +74,33 @@ jobs:
           git tag ${{ steps.version.outputs.tag }}
           git push origin ${{ steps.version.outputs.tag }}
 
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # 获取上一个 tag
+          PREV_TAG=$(git tag --sort=-version:refname | grep '^v' | sed -n '2p')
+          if [ -n "$PREV_TAG" ]; then
+            LOG=$(git log "$PREV_TAG"..HEAD --pretty=format:"- %s" --no-merges)
+          else
+            LOG=$(git log --pretty=format:"- %s" --no-merges)
+          fi
+          # 写入多行输出
+          {
+            echo "log<<EOF"
+            echo "$LOG"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: SnapDict ${{ steps.version.outputs.version }}
           body: |
-            ## SnapDict ${{ steps.version.outputs.version }}
+            ## 更新内容
+            ${{ steps.changelog.outputs.log }}
 
-            ### 安装方式
+            ## 安装方式
             1. 下载 DMG 文件
             2. 打开 DMG，将 SnapDict 拖入 Applications 文件夹
             3. 终端执行 `sudo xattr -r -d com.apple.quarantine /Applications/SnapDict.app`
