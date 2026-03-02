@@ -369,14 +369,14 @@ struct PanelSettingsView: View {
                                 .font(.system(size: 14))
                             if isLoadingTasks {
                                 ProgressView().controlSize(.small)
-                            } else if availableTasks.filter(pushMode == .image ? \.isImageAPI : \.isTextAPI).isEmpty {
+                            } else if availableTasks.filter({ pushMode == .image ? $0.isImageAPI : $0.isTextAPI }).isEmpty {
                                 Text(selectedTaskKey.isEmpty ? "默认" : selectedTaskKey)
                                     .font(.system(size: 12, design: .monospaced))
                                     .foregroundStyle(.secondary)
                             } else {
                                 Picker("", selection: $selectedTaskKey) {
                                     Text("默认").tag("")
-                                    ForEach(availableTasks.filter(pushMode == .image ? \.isImageAPI : \.isTextAPI)) { task in
+                                    ForEach(availableTasks.filter({ pushMode == .image ? $0.isImageAPI : $0.isTextAPI })) { task in
                                         Text(task.key ?? "unknown").tag(task.key ?? "")
                                     }
                                 }

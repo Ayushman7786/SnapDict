@@ -18,8 +18,10 @@
 		4CFCB00F74B76EE2930E9EA7 /* MenuBarIconTemplate.png in Resources */ = {isa = PBXBuildFile; fileRef = 085E01F3E7BDDF102915D85A /* MenuBarIconTemplate.png */; };
 		57B93BAB3E6D53675BB57260 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 6FAA2EE546D77CC79AD4749B /* AppIcon.icns */; };
 		5DF42FA8289541E532A601A7 /* WordPushScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0748A4008F7A3D071ECD5240 /* WordPushScheduler.swift */; };
+		5E7BB52459C5084743E47E51 /* WordCardImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D5E0C5560C1627224F5457F /* WordCardImageView.swift */; };
 		602B89A90B78B7F257D86295 /* WordBookView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89FAC34BCBF8C39EB01F3781 /* WordBookView.swift */; };
 		6AE1D487D3FF7F611AB4CD65 /* PanelWordBookView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12D98B05DEDA6F0AE8E3AC8D /* PanelWordBookView.swift */; };
+		72E3D69580D7C0A66A9635E4 /* WordCardRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB31BABC4AA77535E95EA0F2 /* WordCardRenderer.swift */; };
 		734097A4ABB033C89E07345B /* PanelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC24D800B3D6627EEEA620AD /* PanelManager.swift */; };
 		75CFB7553D471667A470BACD /* TranslationCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39AE3856D11F007BDE4D15CF /* TranslationCache.swift */; };
 		9599AD5D4133DB7732639567 /* TranslationPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6135220CCDC4F0D0642313DB /* TranslationPanel.swift */; };
@@ -43,6 +45,7 @@
 		159D1FB15108D4FC6F59B941 /* ByteDanceTTSService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ByteDanceTTSService.swift; sourceTree = "<group>"; };
 		3719D7A7C373EB674DFF38FD /* HotKeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotKeyManager.swift; sourceTree = "<group>"; };
 		39AE3856D11F007BDE4D15CF /* TranslationCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationCache.swift; sourceTree = "<group>"; };
+		3D5E0C5560C1627224F5457F /* WordCardImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordCardImageView.swift; sourceTree = "<group>"; };
 		45EAFE4E242D1616D8BC6702 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		6135220CCDC4F0D0642313DB /* TranslationPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationPanel.swift; sourceTree = "<group>"; };
 		62566692D40C75E394760BEE /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
@@ -52,6 +55,7 @@
 		8E98A6F746E6B76F170CB3BD /* WordBookManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordBookManager.swift; sourceTree = "<group>"; };
 		9870533FB579328650A06CDE /* SnapDictApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapDictApp.swift; sourceTree = "<group>"; };
 		A7824FA222C1036F420CDA18 /* TTSCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSCache.swift; sourceTree = "<group>"; };
+		BB31BABC4AA77535E95EA0F2 /* WordCardRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordCardRenderer.swift; sourceTree = "<group>"; };
 		BE4C8BFFB9EBAC2B8E464950 /* UnifiedPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnifiedPanelView.swift; sourceTree = "<group>"; };
 		C04CEFE5E32FC38113A99ED8 /* TranslationResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationResult.swift; sourceTree = "<group>"; };
 		C1DB9F8BB1F138B975D09D06 /* SnapDict.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SnapDict.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -156,6 +160,7 @@
 				E60E19ED9B84055D0215FEE0 /* DeepSeekService.swift */,
 				6343E5CFC6B1BB29C20DDDD8 /* DotScreenService.swift */,
 				3719D7A7C373EB674DFF38FD /* HotKeyManager.swift */,
+				BB31BABC4AA77535E95EA0F2 /* WordCardRenderer.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -169,6 +174,7 @@
 				6135220CCDC4F0D0642313DB /* TranslationPanel.swift */,
 				BE4C8BFFB9EBAC2B8E464950 /* UnifiedPanelView.swift */,
 				89FAC34BCBF8C39EB01F3781 /* WordBookView.swift */,
+				3D5E0C5560C1627224F5457F /* WordCardImageView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -269,6 +275,8 @@
 				EACBF911AA84FFED473CC57C /* UnifiedPanelView.swift in Sources */,
 				201EA390A55152482FBE0AC6 /* WordBookManager.swift in Sources */,
 				602B89A90B78B7F257D86295 /* WordBookView.swift in Sources */,
+				5E7BB52459C5084743E47E51 /* WordCardImageView.swift in Sources */,
+				72E3D69580D7C0A66A9635E4 /* WordCardRenderer.swift in Sources */,
 				1E57410281B1E2D8CCD9E14F /* WordEntry.swift in Sources */,
 				5DF42FA8289541E532A601A7 /* WordPushScheduler.swift in Sources */,
 			);
