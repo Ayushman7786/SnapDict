@@ -20,6 +20,9 @@ DerivedData/
 # Claude Code
 .claude/
 
+# Docs
+docs/
+
 # Environment
 .env
 .env.local
