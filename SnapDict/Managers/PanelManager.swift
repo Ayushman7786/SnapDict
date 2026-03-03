@@ -24,7 +24,7 @@ final class PanelManager: NSObject, NSWindowDelegate {
     private weak var hostingView: NSView?
 
     /// 每次显示面板时调用，用于通知 View 重置状态
-    var onShow: ((_ shouldReset: Bool) -> Void)?
+    var onShow: ((_ shouldReset: Bool, _ selectedText: String?) -> Void)?
 
     /// 切换 Tab 的回调
     var onSwitchTab: ((PanelTab) -> Void)?
@@ -71,7 +71,7 @@ final class PanelManager: NSObject, NSWindowDelegate {
 
     // MARK: - 显示/隐藏面板
 
-    func showPanel(modelContainer: ModelContainer) {
+    func showPanel(modelContainer: ModelContainer, selectedText: String? = nil) {
         self.modelContainer = modelContainer
 
         if let panel, panel.isVisible {
@@ -94,7 +94,7 @@ final class PanelManager: NSObject, NSWindowDelegate {
         animateShow()
         // 延迟一个 runloop，确保窗口成为 key window 后再通知 View 设置焦点
         DispatchQueue.main.async {
-            self.onShow?(reset)
+            self.onShow?(reset, selectedText)
         }
     }
 
@@ -122,7 +122,7 @@ final class PanelManager: NSObject, NSWindowDelegate {
             if shouldReset { centerPanel() }
             animateShow()
                 DispatchQueue.main.async {
-                self.onShow?(false)  // 切换到特定 Tab，不重置内容
+                self.onShow?(false, nil)  // 切换到特定 Tab，不重置内容
                 self.onSwitchTab?(tab)
             }
         }

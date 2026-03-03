@@ -7,6 +7,8 @@ struct TranslationContentView: View {
     let resetID: UUID
     /// 当前 Tab 是否激活（控制输入框焦点）
     let isActive: Bool
+    /// 外部传入的初始查询（选中文字），使用后自动清空
+    @Binding var initialQuery: String?
     /// 内容区显示状态变化回调（供 UnifiedPanelView 控制面板高度）
     var onContentChange: ((Bool) -> Void)?
 
@@ -126,6 +128,20 @@ struct TranslationContentView: View {
         .onChange(of: resetID) { _, _ in
             resetState()
             if isActive { isInputFocused = true }
+            // reset 后检查是否有待填入的选中文字
+            if let text = initialQuery, !text.isEmpty {
+                query = text
+                initialQuery = nil
+                performTranslation()
+            }
+        }
+        .onChange(of: initialQuery) { _, newValue in
+            // 非 reset 场景下的选中文字填入（面板未重置时）
+            if let text = newValue, !text.isEmpty {
+                query = text
+                initialQuery = nil
+                performTranslation()
+            }
         }
         .onChange(of: isActive) { _, newValue in
             if newValue {

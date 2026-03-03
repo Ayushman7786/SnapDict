@@ -18,7 +18,7 @@ struct WordCardImageView: View {
                 if !phonetic.isEmpty {
                     Text(phonetic)
                         .font(.system(size: 14))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.black.opacity(0.85))
                 }
             }
             .padding(.horizontal, 16)
@@ -27,7 +27,7 @@ struct WordCardImageView: View {
 
             // 分隔线
             Rectangle()
-                .fill(Color.black.opacity(0.15))
+                .fill(Color.black)
                 .frame(height: 1)
                 .padding(.horizontal, 16)
 
@@ -44,8 +44,8 @@ struct WordCardImageView: View {
             HStack {
                 Spacer()
                 Text("SnapDict")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.quaternary)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Color.black)
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 8)
@@ -55,3 +55,12 @@ struct WordCardImageView: View {
         .foregroundStyle(Color.black)
     }
 }
+#Preview {
+    WordCardImageView(
+        word: "serendipity",
+        phonetic: "/ˌserənˈdɪpɪti/",
+        translation: "n. 意外发现珍奇事物的运气；机缘巧合"
+    )
+    .padding()
+}
+

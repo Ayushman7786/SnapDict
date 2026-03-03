@@ -137,12 +137,20 @@ final class DotScreenService: Sendable {
             throw DotError.invalidURL
         }
 
+        let ditherTypeRaw = UserDefaults.standard.string(forKey: Constants.UserDefaultsKey.ditherType) ?? ""
+        let ditherType = Constants.DitherType(rawValue: ditherTypeRaw) ?? Constants.Defaults.ditherType
+
         var body: [String: Any] = [
             "refreshNow": true,
             "image": base64Image,
             "border": 0,
-            "ditherType": "NONE"
+            "ditherType": ditherType.rawValue
         ]
+        if ditherType == .diffusion {
+            let kernelRaw = UserDefaults.standard.string(forKey: Constants.UserDefaultsKey.ditherKernel) ?? ""
+            let kernel = Constants.DitherKernel(rawValue: kernelRaw) ?? Constants.Defaults.ditherKernel
+            body["ditherKernel"] = kernel.rawValue
+        }
         if let taskKey, !taskKey.isEmpty {
             body["taskKey"] = taskKey
         }

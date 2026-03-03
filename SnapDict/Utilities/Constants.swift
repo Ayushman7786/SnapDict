@@ -50,6 +50,48 @@ enum Constants {
         }
     }
 
+    enum DitherType: String, CaseIterable {
+        case none = "NONE"
+        case diffusion = "DIFFUSION"
+        case ordered = "ORDERED"
+
+        var displayName: String {
+            switch self {
+            case .none: return "关闭抖动"
+            case .diffusion: return "误差扩散"
+            case .ordered: return "有序抖动"
+            }
+        }
+    }
+
+    enum DitherKernel: String, CaseIterable {
+        case floydSteinberg = "FLOYD_STEINBERG"
+        case jarvisJudiceNinke = "JARVIS_JUDICE_NINKE"
+        case stucki = "STUCKI"
+        case atkinson = "ATKINSON"
+        case burkes = "BURKES"
+        case sierra = "SIERRA"
+        case twoRowSierra = "TWO_ROW_SIERRA"
+        case sierraLite = "SIERRA_LITE"
+        case simple2D = "SIMPLE_2D"
+        case stevensonArce = "STEVENSON_ARCE"
+
+        var displayName: String {
+            switch self {
+            case .floydSteinberg: return "Floyd-Steinberg"
+            case .jarvisJudiceNinke: return "Jarvis-Judice-Ninke"
+            case .stucki: return "Stucki"
+            case .atkinson: return "Atkinson"
+            case .burkes: return "Burkes"
+            case .sierra: return "Sierra"
+            case .twoRowSierra: return "Two-Row Sierra"
+            case .sierraLite: return "Sierra Lite"
+            case .simple2D: return "Simple 2D"
+            case .stevensonArce: return "Stevenson-Arce"
+            }
+        }
+    }
+
     enum UserDefaultsKey {
         static let deepSeekAPIKey = "deepSeekAPIKey"
         static let dotAPIKey = "dotAPIKey"
@@ -70,7 +112,10 @@ enum Constants {
         static let byteDanceTTSVoice = "byteDanceTTSVoice"
         static let hideOnFocusLost = "hideOnFocusLost"
         static let autoCorrect = "autoCorrect"
+        static let autoFetchSelectedText = "autoFetchSelectedText"
         static let pushMode = "pushMode"
+        static let ditherType = "ditherType"
+        static let ditherKernel = "ditherKernel"
     }
 
     enum Defaults {
@@ -82,7 +127,10 @@ enum Constants {
         static let ttsFallbackToSystem = true
         static let hideOnFocusLost = true
         static let autoCorrect = false
+        static let autoFetchSelectedText = false
         static let pushMode: PushMode = .text
+        static let ditherType: DitherType = .none
+        static let ditherKernel: DitherKernel = .floydSteinberg
     }
 
     enum Notification {

@@ -14,7 +14,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Register hot key
         HotKeyManager.shared.onHotKey = { [weak self] in
             guard let container = self?.modelContainer else { return }
-            PanelManager.shared.showPanel(modelContainer: container)
+            var selectedText: String? = nil
+            let autoFetch = UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.autoFetchSelectedText) as? Bool
+                ?? Constants.Defaults.autoFetchSelectedText
+            if autoFetch {
+                selectedText = SelectedTextReader.getSelectedText()
+            }
+            PanelManager.shared.showPanel(modelContainer: container, selectedText: selectedText)
         }
         HotKeyManager.shared.register()
 
@@ -96,7 +102,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             showQuitMenu()
         } else {
             guard let container = modelContainer else { return }
-            PanelManager.shared.showPanel(modelContainer: container)
+            var selectedText: String? = nil
+            let autoFetch = UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.autoFetchSelectedText) as? Bool
+                ?? Constants.Defaults.autoFetchSelectedText
+            if autoFetch {
+                selectedText = SelectedTextReader.getSelectedText()
+            }
+            PanelManager.shared.showPanel(modelContainer: container, selectedText: selectedText)
         }
     }
 

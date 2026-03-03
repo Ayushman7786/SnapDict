@@ -61,9 +61,12 @@ struct PanelSettingsView: View {
     @State private var pushInterval: Int = Constants.Defaults.pushIntervalMinutes
     @State private var pushOnlyLearning: Bool = Constants.Defaults.pushOnlyLearning
     @State private var pushMode: Constants.PushMode = Constants.Defaults.pushMode
+    @State private var ditherType: Constants.DitherType = Constants.Defaults.ditherType
+    @State private var ditherKernel: Constants.DitherKernel = Constants.Defaults.ditherKernel
     @State private var availableTasks: [DotTask] = []
     @State private var selectedTaskKey: String = ""
     @State private var isLoadingTasks: Bool = false
+    @State private var isPushingNow: Bool = false
 
     // Dot connection
     enum DotConnectionState: Equatable {
@@ -83,6 +86,8 @@ struct PanelSettingsView: View {
     @State private var showExamples: Bool = Constants.Defaults.showExamples
     @State private var hideOnFocusLost: Bool = Constants.Defaults.hideOnFocusLost
     @State private var autoCorrect: Bool = Constants.Defaults.autoCorrect
+    @State private var autoFetchSelectedText: Bool = Constants.Defaults.autoFetchSelectedText
+    @State private var accessibilityGranted: Bool = false
     @State private var eventMonitor: Any?
 
     // API test states
@@ -210,6 +215,52 @@ struct PanelSettingsView: View {
                     }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
+
+                    Divider().padding(.leading, 14)
+
+                    VStack(spacing: 0) {
+                        HStack {
+                            Text("自动获取选中文字")
+                            Spacer()
+                            Toggle("", isOn: $autoFetchSelectedText)
+                                .toggleStyle(.switch)
+                                .labelsHidden()
+                                .onChange(of: autoFetchSelectedText) { _, newValue in
+                                    UserDefaults.standard.set(newValue, forKey: Constants.UserDefaultsKey.autoFetchSelectedText)
+                                    if newValue {
+                                        SelectedTextReader.requestAccessibility()
+                                        checkAccessibility()
+                                    }
+                                }
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+
+                        if autoFetchSelectedText {
+                            HStack(spacing: 4) {
+                                if accessibilityGranted {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(.green)
+                                    Text("辅助功能权限已授予")
+                                } else {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundStyle(.orange)
+                                    Text("需要辅助功能权限")
+                                    Spacer()
+                                    Button("前往设置") {
+                                        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.mini)
+                                }
+                            }
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 14)
+                            .padding(.bottom, 10)
+                        }
+                    }
 
                     Divider().padding(.leading, 14)
 
@@ -505,6 +556,89 @@ struct PanelSettingsView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
+
+                    if pushMode == .image {
+                        Divider().padding(.leading, 14)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("抖动类型")
+                                .font(.system(size: 14))
+                            Picker("抖动类型", selection: $ditherType) {
+                                ForEach(Constants.DitherType.allCases, id: \.self) { type in
+                                    Text(type.displayName).tag(type)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .fixedSize()
+                            .onChange(of: ditherType) { _, newValue in
+                                UserDefaults.standard.set(newValue.rawValue, forKey: Constants.UserDefaultsKey.ditherType)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+
+                        if ditherType == .diffusion {
+                            Divider().padding(.leading, 14)
+
+                            HStack {
+                                Text("抖动算法")
+                                    .font(.system(size: 14))
+                                Picker("抖动算法", selection: $ditherKernel) {
+                                    ForEach(Constants.DitherKernel.allCases, id: \.self) { kernel in
+                                        Text(kernel.displayName).tag(kernel)
+                                    }
+                                }
+                                .labelsHidden()
+                                .fixedSize()
+                                .onChange(of: ditherKernel) { _, newValue in
+                                    UserDefaults.standard.set(newValue.rawValue, forKey: Constants.UserDefaultsKey.ditherKernel)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                        }
+                    }
+
+                    Divider().padding(.leading, 14)
+
+                    // 推送内容预览
+                    pushContentPreview()
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+
+                    Divider().padding(.leading, 14)
+
+                    Button {
+                        isPushingNow = true
+                        Task {
+                            await WordPushScheduler.shared.pushNext()
+                            isPushingNow = false
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            if isPushingNow {
+                                ProgressView().controlSize(.small)
+                            }
+                            Text("立即推送下一条")
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(isPushingNow)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+
+                    if let error = WordPushScheduler.shared.lastError {
+                        Text(error)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.red)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 14)
+                            .padding(.bottom, 10)
+                    }
                     } // end if pushEnabled
                 }
                 .background(.background.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
@@ -564,7 +698,11 @@ struct PanelSettingsView: View {
         .onAppear { loadSettings() }
         .onDisappear { stopRecording() }
         .onChange(of: isActive) { _, active in
-            if !active { stopRecording() }
+            if !active {
+                stopRecording()
+            } else {
+                checkAccessibility()
+            }
         }
     }
 
@@ -633,6 +771,98 @@ struct PanelSettingsView: View {
                     .font(.system(size: 11))
                     .foregroundStyle(.red)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func pushContentPreview() -> some View {
+        let lastWord = WordBookManager.shared.lastPushedWord()
+
+        VStack(alignment: .leading, spacing: 8) {
+            Text("推送预览")
+                .font(.system(size: 14))
+                .foregroundStyle(.secondary)
+
+            if let entry = lastWord {
+                if pushMode == .image {
+                    ditherPreview(entry: entry)
+                } else {
+                    let message = [
+                        entry.phonetic.isEmpty ? nil : entry.phonetic,
+                        entry.translation,
+                        entry.examples.first
+                    ]
+                        .compactMap { $0 }
+                        .joined(separator: "\n")
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(entry.word)
+                            .font(.system(size: 16, weight: .bold))
+                        Divider()
+                        Text(message)
+                            .font(.system(size: 13))
+                            .lineSpacing(3)
+                        HStack {
+                            Spacer()
+                            Text("SnapDict")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.quaternary)
+                        }
+                    }
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(white: 0.97))
+                    .foregroundStyle(Color.black)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                    )
+                }
+            } else {
+                Text("暂无推送记录")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 20)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private func ditherPreview(entry: WordEntry) -> some View {
+        let cardView = WordCardImageView(
+            word: entry.word,
+            phonetic: entry.phonetic,
+            translation: entry.translation
+        )
+
+        let dithered: NSImage? = {
+            let renderer = ImageRenderer(content: cardView)
+            renderer.scale = 1.0
+            guard let cgImage = renderer.cgImage else { return nil }
+            guard let result = DitherSimulator.apply(to: cgImage, type: ditherType, kernel: ditherKernel) else { return nil }
+            return NSImage(cgImage: result, size: NSSize(width: result.width, height: result.height))
+        }()
+
+        if let nsImage = dithered {
+            Image(nsImage: nsImage)
+                .interpolation(.none)
+                .resizable()
+                .frame(width: 296, height: 152)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                )
+        } else {
+            cardView
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                )
         }
     }
 
@@ -952,8 +1182,8 @@ struct PanelSettingsView: View {
             do {
                 let tasks = try await DotScreenService.shared.fetchTasks(deviceId: selectedDeviceId)
                 availableTasks = tasks
-                let textTasks = tasks.filter(\.isTextAPI)
-                if !textTasks.contains(where: { $0.key == selectedTaskKey }) {
+                let matchingTasks = tasks.filter { pushMode == .image ? $0.isImageAPI : $0.isTextAPI }
+                if !matchingTasks.contains(where: { $0.key == selectedTaskKey }) {
                     selectedTaskKey = ""
                     UserDefaults.standard.removeObject(forKey: Constants.UserDefaultsKey.cachedTaskKey)
                 }
@@ -1053,6 +1283,10 @@ struct PanelSettingsView: View {
 
     // MARK: - Helpers
 
+    private func checkAccessibility() {
+        accessibilityGranted = SelectedTextReader.isAccessibilityGranted()
+    }
+
     private func loadSettings() {
         deepSeekKey = UserDefaults.standard.string(forKey: Constants.UserDefaultsKey.deepSeekAPIKey) ?? ""
         savedDeepSeekKey = deepSeekKey
@@ -1081,8 +1315,15 @@ struct PanelSettingsView: View {
             ?? Constants.Defaults.hideOnFocusLost
         autoCorrect = UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.autoCorrect) as? Bool
             ?? Constants.Defaults.autoCorrect
+        autoFetchSelectedText = UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.autoFetchSelectedText) as? Bool
+            ?? Constants.Defaults.autoFetchSelectedText
+        checkAccessibility()
         let pushModeRaw = UserDefaults.standard.string(forKey: Constants.UserDefaultsKey.pushMode) ?? ""
         pushMode = Constants.PushMode(rawValue: pushModeRaw) ?? Constants.Defaults.pushMode
+        let ditherTypeRaw = UserDefaults.standard.string(forKey: Constants.UserDefaultsKey.ditherType) ?? ""
+        ditherType = Constants.DitherType(rawValue: ditherTypeRaw) ?? Constants.Defaults.ditherType
+        let ditherKernelRaw = UserDefaults.standard.string(forKey: Constants.UserDefaultsKey.ditherKernel) ?? ""
+        ditherKernel = Constants.DitherKernel(rawValue: ditherKernelRaw) ?? Constants.Defaults.ditherKernel
         selectedTaskKey = UserDefaults.standard.string(forKey: Constants.UserDefaultsKey.cachedTaskKey) ?? ""
         selectedDeviceId = UserDefaults.standard.string(forKey: Constants.UserDefaultsKey.cachedDeviceId) ?? ""
         // 有 Key 时自动连接获取设备

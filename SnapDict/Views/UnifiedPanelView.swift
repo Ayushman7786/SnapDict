@@ -39,6 +39,7 @@ struct UnifiedPanelView: View {
     @State private var selectedTab: PanelTab = .translation
     @State private var translationResetID = UUID()
     @State private var translationHasContent = false
+    @State private var pendingSelectedText: String?
     @State private var hideOnFocusLost: Bool = UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.hideOnFocusLost) as? Bool ?? Constants.Defaults.hideOnFocusLost
 
     /// 切换 Tab：先预扩窗口（避免内容被压缩闪动），再切换内容
@@ -60,6 +61,7 @@ struct UnifiedPanelView: View {
                 TranslationContentView(
                     resetID: translationResetID,
                     isActive: selectedTab == .translation,
+                    initialQuery: $pendingSelectedText,
                     onContentChange: { hasContent in
                         translationHasContent = hasContent
                         guard selectedTab == .translation else { return }
@@ -104,11 +106,17 @@ struct UnifiedPanelView: View {
         }
         .onAppear {
             // 注册显示/重置回调
-            PanelManager.shared.onShow = { shouldReset in
+            PanelManager.shared.onShow = { shouldReset, selectedText in
                 if shouldReset {
                     selectedTab = .translation
                     translationResetID = UUID()
                     translationHasContent = false
+                }
+                if let text = selectedText, !text.isEmpty {
+                    if selectedTab != .translation {
+                        switchTab(to: .translation)
+                    }
+                    pendingSelectedText = text
                 }
             }
             // 注册 Tab 切换回调（供 MenuBarView 等外部调用）

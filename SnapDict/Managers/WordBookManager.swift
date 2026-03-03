@@ -105,6 +105,17 @@ final class WordBookManager {
         return try? context.fetch(descriptor).first
     }
 
+    func lastPushedWord() -> WordEntry? {
+        guard let container = modelContainer else { return nil }
+        let context = container.mainContext
+        var descriptor = FetchDescriptor<WordEntry>(
+            predicate: #Predicate { $0.lastPushedAt != nil },
+            sortBy: [SortDescriptor(\.lastPushedAt, order: .reverse)]
+        )
+        descriptor.fetchLimit = 1
+        return try? context.fetch(descriptor).first
+    }
+
     func markPushed(_ entry: WordEntry) throws {
         guard let container = modelContainer else { return }
         let context = container.mainContext
