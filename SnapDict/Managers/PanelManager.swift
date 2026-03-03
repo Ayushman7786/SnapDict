@@ -8,17 +8,29 @@ final class PanelManager: NSObject, NSWindowDelegate {
 
     private var panel: TranslationPanel?
     private let panelWidth: CGFloat = 420
-    // 查词 Tab 高度（Tab 栏 + 搜索框/结果区）
-    private let compactHeight: CGFloat = 98      // 紧凑：仅搜索框 (38 + 60)
-    private let expandedHeight: CGFloat = 418    // 展开：含结果 (38 + 380)
 
-    // 其他 Tab 高度
-    private let wordBookHeight: CGFloat = 520
+    // 查词 Tab 高度
+    private let compactHeight: CGFloat = 98      // 紧凑：仅搜索框 (tabBar + searchArea)
+    private let searchAreaHeight: CGFloat = 60   // 搜索栏区域高度（含 padding）
+
+    // 其他 Tab 默认高度
+    private let defaultWordBookHeight: CGFloat = 520
+    private let defaultSettingsHeight: CGFloat = 498  // tabBarHeight + 460
+
     /// Tab 栏高度（指示器 + Divider）
     private let tabBarHeight: CGFloat = 38
     /// 设置页面内容高度（由 View 动态上报，初始值保证首次渲染有足够空间）
     private var settingsContentHeight: CGFloat = 460
     private var settingsHeight: CGFloat { tabBarHeight + settingsContentHeight }
+
+    // 新增状态
+    private var currentTab: PanelTab = .translation
+    private var translationContentHeight: CGFloat = 0
+    private var isResizingProgrammatically = false
+
+    // 用户手动调整的高度（从 UserDefaults 恢复）
+    private var userWordBookHeight: CGFloat?
+    private var userSettingsHeight: CGFloat?
 
     private var modelContainer: ModelContainer?
     private weak var hostingView: NSView?
@@ -39,6 +51,9 @@ final class PanelManager: NSObject, NSWindowDelegate {
 
     private override init() {
         super.init()
+        // 从 UserDefaults 恢复用户手动调整的高度
+        userWordBookHeight = UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.panelHeightWordBook) as? CGFloat
+        userSettingsHeight = UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.panelHeightSettings) as? CGFloat
         setupLocalEventMonitor()
     }
 
@@ -117,11 +132,11 @@ final class PanelManager: NSObject, NSWindowDelegate {
         if let panel, panel.isVisible {
             // 面板已可见，直接切换 Tab
             onSwitchTab?(tab)
-            } else {
+        } else {
             // 面板不可见，先显示再切 Tab
             if shouldReset { centerPanel() }
             animateShow()
-                DispatchQueue.main.async {
+            DispatchQueue.main.async {
                 self.onShow?(false, nil)  // 切换到特定 Tab，不重置内容
                 self.onSwitchTab?(tab)
             }
@@ -140,37 +155,49 @@ final class PanelManager: NSObject, NSWindowDelegate {
 
     // MARK: - 高度自适应
 
-    private func targetHeight(for tab: PanelTab, hasContent: Bool) -> CGFloat {
+    private func targetHeight(for tab: PanelTab) -> CGFloat {
         switch tab {
-        case .translation: hasContent ? expandedHeight : compactHeight
-        case .wordBook:    wordBookHeight
-        case .settings:    settingsHeight
+        case .translation:
+            if translationContentHeight <= 0 {
+                return compactHeight  // 无内容：仅搜索框
+            }
+            // 有内容：tabBar + 搜索栏 + divider + 实际内容高度
+            let naturalHeight = tabBarHeight + searchAreaHeight + 1 + translationContentHeight
+            let maxHeight = (NSScreen.main?.visibleFrame.height ?? 800) * 0.6
+            return min(naturalHeight, maxHeight)
+        case .wordBook:
+            return userWordBookHeight ?? defaultWordBookHeight
+        case .settings:
+            return userSettingsHeight ?? defaultSettingsHeight
         }
     }
 
-    func adjustHeight(for tab: PanelTab, hasContent: Bool = false) {
-        resizePanel(to: targetHeight(for: tab, hasContent: hasContent), animated: true)
+    func adjustHeight(for tab: PanelTab) {
+        currentTab = tab
+        resizePanel(to: targetHeight(for: tab), animated: true)
     }
 
     /// 切换 Tab 前调用：若目标 Tab 需要更大窗口，先无动画扩大，避免内容被压缩闪动
-    func preExpandIfNeeded(for tab: PanelTab, hasContent: Bool) {
-        let target = targetHeight(for: tab, hasContent: hasContent)
+    func preExpandIfNeeded(for tab: PanelTab) {
+        let target = targetHeight(for: tab)
         guard let panel, panel.frame.height < target else { return }
         resizePanel(to: target, animated: false)
     }
 
+    func updateTranslationContentHeight(_ height: CGFloat) {
+        translationContentHeight = height
+        guard currentTab == .translation, panel != nil else { return }
+        resizePanel(to: targetHeight(for: .translation), animated: true)
+    }
+
     func updateSettingsHeight(_ contentHeight: CGFloat) {
         settingsContentHeight = contentHeight
-        guard panel != nil else { return }
-        resizePanel(to: settingsHeight, animated: true)
-    }
-
-    func setCompactMode() {
-        resizePanel(to: compactHeight, animated: true)
-    }
-
-    func setExpandedMode() {
-        resizePanel(to: expandedHeight, animated: true)
+        guard currentTab == .settings, panel != nil else { return }
+        // 如果用户已手动调整过高度，不自动改变
+        if userSettingsHeight != nil { return }
+        let maxHeight = NSScreen.main?.visibleFrame.height ?? 1000
+        let target = min(settingsHeight, maxHeight)
+        resizePanel(to: target, animated: true)
     }
 
     // MARK: - 动画
@@ -285,6 +312,8 @@ final class PanelManager: NSObject, NSWindowDelegate {
         guard let panel else { return }
         guard panel.frame.height != height else { return }
 
+        isResizingProgrammatically = true
+
         // 清理 show/hide 残留动画，防止 transform 在 resize 时产生视觉干扰
         if let layer = panel.contentView?.layer {
             layer.removeAllAnimations()
@@ -310,6 +339,10 @@ final class PanelManager: NSObject, NSWindowDelegate {
                 ? CAMediaTimingFunction(name: .easeInEaseOut)
                 : nil
             panel.animator().setFrame(frame, display: true)
+        } completionHandler: {
+            Task { @MainActor in
+                self.isResizingProgrammatically = false
+            }
         }
     }
 
@@ -360,6 +393,11 @@ final class PanelManager: NSObject, NSWindowDelegate {
         newPanel.contentView = visualEffect
 
         self.panel = newPanel
+
+        // 设置宽松的 min/max（用户手动 resize 由 windowWillResize 控制）
+        let screenHeight = NSScreen.main?.visibleFrame.height ?? 1000
+        newPanel.minSize = NSSize(width: panelWidth, height: compactHeight)
+        newPanel.maxSize = NSSize(width: panelWidth, height: screenHeight)
     }
 
     private func centerPanel() {
@@ -382,6 +420,36 @@ final class PanelManager: NSObject, NSWindowDelegate {
                 ?? Constants.Defaults.hideOnFocusLost
             if hide {
                 self.hidePanel()
+            }
+        }
+    }
+
+    nonisolated func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
+        MainActor.assumeIsolated {
+            var size = NSSize(width: panelWidth, height: frameSize.height)
+            // 查词页不允许用户手动 resize，仅程序控制
+            if currentTab == .translation && !isResizingProgrammatically {
+                size.height = sender.frame.height
+            }
+            return size
+        }
+    }
+
+    nonisolated func windowDidResize(_ notification: Notification) {
+        Task { @MainActor in
+            guard !isResizingProgrammatically else { return }
+            guard let panel else { return }
+            let height = panel.frame.height
+
+            switch currentTab {
+            case .translation:
+                break  // 查词页纯自动，不记忆
+            case .wordBook:
+                userWordBookHeight = height
+                UserDefaults.standard.set(height, forKey: Constants.UserDefaultsKey.panelHeightWordBook)
+            case .settings:
+                userSettingsHeight = height
+                UserDefaults.standard.set(height, forKey: Constants.UserDefaultsKey.panelHeightSettings)
             }
         }
     }

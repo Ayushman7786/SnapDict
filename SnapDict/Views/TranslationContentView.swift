@@ -11,6 +11,8 @@ struct TranslationContentView: View {
     @Binding var initialQuery: String?
     /// 内容区显示状态变化回调（供 UnifiedPanelView 控制面板高度）
     var onContentChange: ((Bool) -> Void)?
+    /// 上报实际内容高度（供 PanelManager 自适应窗口高度）
+    var onContentHeightChange: ((CGFloat) -> Void)?
 
     @State private var query = ""
     @State private var result: TranslationResult?
@@ -27,14 +29,37 @@ struct TranslationContentView: View {
     @State private var mnemonicTask: Task<Void, Never>?
     @State private var examplesTask: Task<Void, Never>?
     @State private var correctionDismissed = false
+    @State private var shimmerPhase: CGFloat = -200
 
     private let synthesizer = AVSpeechSynthesizer()
+
+    @State private var contentHeight: CGFloat = 0
 
     @FocusState private var isInputFocused: Bool
 
     // 判断是否有内容显示（需要展开窗口）
     private var hasContent: Bool {
         isLoading || errorMessage != nil || result != nil
+    }
+
+    /// 是否有任何骨架屏可见（主骨架屏或助记/例句骨架屏），用于控制闪烁动画
+    private var isAnySkeletonVisible: Bool {
+        if isLoading { return true }
+        guard result != nil else { return false }
+        let hasMnemonicData = result?.etymology != nil || result?.association != nil
+        let hasExamples = !(result?.examples.isEmpty ?? true)
+        return (isMnemonicLoading && !hasMnemonicData) || (isExamplesLoading && !hasExamples)
+    }
+
+    /// 骨架屏预估内容高度，用于在 onGeometryChange 触发前立即展开面板
+    private var estimatedSkeletonContentHeight: CGFloat {
+        // 基础：单词行 + 2 行翻译 + 间距 + padding
+        var h: CGFloat = 106
+        if UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.enableMnemonic) as? Bool
+            ?? Constants.Defaults.enableMnemonic { h += 99 }
+        if UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.showExamples) as? Bool
+            ?? Constants.Defaults.showExamples { h += 98 }
+        return h
     }
 
     var body: some View {
@@ -83,18 +108,7 @@ struct TranslationContentView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 12) {
                         if isLoading {
-                            HStack {
-                                Spacer()
-                                VStack(spacing: 8) {
-                                    ProgressView()
-                                        .scaleEffect(0.9)
-                                    Text("翻译中...")
-                                        .font(.system(size: 13))
-                                        .foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                            }
-                            .padding(.top, 40)
+                            skeletonView()
                         } else if let error = errorMessage {
                             HStack {
                                 Spacer()
@@ -115,12 +129,33 @@ struct TranslationContentView: View {
                         }
                     }
                     .padding(16)
+                    .onGeometryChange(for: CGFloat.self) { proxy in
+                        proxy.size.height
+                    } action: { newHeight in
+                        contentHeight = newHeight
+                    }
                 }
             }
         }
         .frame(width: 420)
         .background(.clear)
+        .onChange(of: contentHeight) { _, newHeight in
+            if hasContent {
+                onContentHeightChange?(newHeight)
+            }
+        }
         .onChange(of: hasContent) { _, newValue in
+            if newValue {
+                // 立即上报预估内容高度，触发面板展开，
+                // 不等待 onGeometryChange 异步布局回调。
+                // 防止快速 API 响应在布局完成前到达导致面板不展开。
+                if contentHeight <= 0 {
+                    onContentHeightChange?(estimatedSkeletonContentHeight)
+                }
+            } else {
+                // 重置，确保下次内容出现时 onChange(of: contentHeight) 可靠触发
+                contentHeight = 0
+            }
             DispatchQueue.main.async {
                 self.onContentChange?(newValue)
             }
@@ -158,12 +193,122 @@ struct TranslationContentView: View {
             resetState()
             return .handled
         }
+        .onChange(of: isAnySkeletonVisible) { _, visible in
+            if visible {
+                shimmerPhase = -200
+                withAnimation(.linear(duration: 1.2).repeatForever(autoreverses: false)) {
+                    shimmerPhase = 400
+                }
+            } else {
+                shimmerPhase = -200
+            }
+        }
         .onAppear {
             if isActive {
                 isInputFocused = true
             }
         }
     }
+
+    // MARK: - Skeleton
+
+    private func skeletonLine(width: CGFloat, height: CGFloat = 14) -> some View {
+        RoundedRectangle(cornerRadius: 4)
+            .fill(.quaternary)
+            .frame(width: width, height: height)
+    }
+
+    /// 为骨架内容添加从左到右扫过的光波闪烁效果
+    private func withShimmer<Content: View>(@ViewBuilder content: @escaping () -> Content) -> some View {
+        content()
+            .overlay(
+                LinearGradient(
+                    gradient: Gradient(colors: [.clear, .white.opacity(0.4), .clear]),
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+                .frame(width: 120)
+                .offset(x: shimmerPhase)
+                .mask { content() }
+            )
+    }
+
+    @ViewBuilder
+    private func skeletonView() -> some View {
+        let enableMnemonic = UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.enableMnemonic) as? Bool
+            ?? Constants.Defaults.enableMnemonic
+        let showExamples = UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.showExamples) as? Bool
+            ?? Constants.Defaults.showExamples
+
+        withShimmer {
+            VStack(alignment: .leading, spacing: 12) {
+                // 单词行：word + phonetic + bookmark
+                HStack {
+                    skeletonLine(width: 120, height: 22)
+                    skeletonLine(width: 60, height: 15)
+                    Spacer()
+                    skeletonLine(width: 20, height: 20)
+                }
+
+                // 翻译
+                skeletonLine(width: 280)
+                skeletonLine(width: 180)
+
+                // 助记
+                if enableMnemonic {
+                    Divider()
+                        .padding(.vertical, 4)
+
+                    HStack(spacing: 4) {
+                        skeletonLine(width: 14, height: 14)
+                        skeletonLine(width: 30, height: 13)
+                    }
+                    skeletonLine(width: 240)
+                    skeletonLine(width: 300)
+                }
+
+                // 例句
+                if showExamples {
+                    Divider()
+                        .padding(.vertical, 4)
+
+                    skeletonLine(width: 30, height: 13)
+                    skeletonLine(width: 340)
+                    skeletonLine(width: 260)
+                }
+            }
+        }
+    }
+
+    /// 助记区域骨架屏（词根 + 联想占位）
+    @ViewBuilder
+    private func mnemonicSkeletonContent() -> some View {
+        withShimmer {
+            VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 4) {
+                    skeletonLine(width: 28, height: 12)
+                    skeletonLine(width: 240)
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    skeletonLine(width: 28, height: 12)
+                    skeletonLine(width: 300)
+                }
+            }
+        }
+    }
+
+    /// 例句区域骨架屏
+    @ViewBuilder
+    private func examplesSkeletonContent() -> some View {
+        withShimmer {
+            VStack(alignment: .leading, spacing: 8) {
+                skeletonLine(width: 340)
+                skeletonLine(width: 260)
+            }
+        }
+    }
+
+    // MARK: - Result
 
     @ViewBuilder
     private func resultView(_ result: TranslationResult) -> some View {
@@ -348,11 +493,12 @@ struct TranslationContentView: View {
         // 取消防抖任务
         debounceTask?.cancel()
         // 若有正在进行的查询，立即中断并清除结果，等待用户输入完成后重新查询
+        // 保持 isLoading = true 让骨架屏持续显示，避免面板塌缩闪烁
         if isLoading || isMnemonicLoading || isExamplesLoading {
             translationTask?.cancel()
             mnemonicTask?.cancel()
             examplesTask?.cancel()
-            isLoading = false
+            isLoading = true
             isMnemonicLoading = false
             isExamplesLoading = false
             result = nil
@@ -481,6 +627,10 @@ struct TranslationContentView: View {
                         .foregroundStyle(.red)
                 }
 
+                if isMnemonicLoading && !hasMnemonicData {
+                    mnemonicSkeletonContent()
+                }
+
                 Group {
                     if let etymology = result.etymology {
                         VStack(alignment: .leading, spacing: 4) {
@@ -558,6 +708,10 @@ struct TranslationContentView: View {
                     Text(error)
                         .font(.system(size: 13))
                         .foregroundStyle(.red)
+                }
+
+                if isExamplesLoading && !hasExamples {
+                    examplesSkeletonContent()
                 }
 
                 Group {

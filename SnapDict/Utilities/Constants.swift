@@ -116,6 +116,8 @@ enum Constants {
         static let pushMode = "pushMode"
         static let ditherType = "ditherType"
         static let ditherKernel = "ditherKernel"
+        static let panelHeightWordBook = "panelHeightWordBook"
+        static let panelHeightSettings = "panelHeightSettings"
     }
 
     enum Defaults {

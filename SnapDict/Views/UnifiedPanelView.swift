@@ -44,7 +44,7 @@ struct UnifiedPanelView: View {
 
     /// 切换 Tab：先预扩窗口（避免内容被压缩闪动），再切换内容
     private func switchTab(to tab: PanelTab) {
-        PanelManager.shared.preExpandIfNeeded(for: tab, hasContent: translationHasContent)
+        PanelManager.shared.preExpandIfNeeded(for: tab)
         selectedTab = tab
     }
 
@@ -65,11 +65,14 @@ struct UnifiedPanelView: View {
                     onContentChange: { hasContent in
                         translationHasContent = hasContent
                         guard selectedTab == .translation else { return }
-                        if hasContent {
-                            PanelManager.shared.setExpandedMode()
-                        } else {
-                            PanelManager.shared.setCompactMode()
+                        if !hasContent {
+                            // 无内容时，内容高度重置为 0，触发紧凑模式
+                            PanelManager.shared.updateTranslationContentHeight(0)
                         }
+                    },
+                    onContentHeightChange: { height in
+                        guard selectedTab == .translation else { return }
+                        PanelManager.shared.updateTranslationContentHeight(height)
                     }
                 )
                 .tabContent(isActive: selectedTab == .translation)
@@ -96,7 +99,7 @@ struct UnifiedPanelView: View {
         }
         .onChange(of: selectedTab) { _, newTab in
             // 内容切换后，动画调整到目标高度（preExpand 已处理扩大，这里处理缩小）
-            PanelManager.shared.adjustHeight(for: newTab, hasContent: self.translationHasContent)
+            PanelManager.shared.adjustHeight(for: newTab)
         }
         .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in
             let newValue = UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.hideOnFocusLost) as? Bool ?? Constants.Defaults.hideOnFocusLost
