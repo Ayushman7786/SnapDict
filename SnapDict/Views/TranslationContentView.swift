@@ -673,6 +673,8 @@ struct TranslationContentView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 4) {
+                    Image(systemName: "text.quote")
+                        .font(.system(size: 12))
                     Text("例句")
                         .font(.system(size: 13))
                         .foregroundStyle(.secondary)
