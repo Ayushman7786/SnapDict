@@ -61,6 +61,7 @@ struct PanelSettingsView: View {
     @State private var pushInterval: Int = Constants.Defaults.pushIntervalMinutes
     @State private var pushOnlyLearning: Bool = Constants.Defaults.pushOnlyLearning
     @State private var pushMode: Constants.PushMode = Constants.Defaults.pushMode
+    @State private var pushRandomMode: Constants.PushRandomMode = Constants.Defaults.pushRandomMode
     @State private var ditherType: Constants.DitherType = Constants.Defaults.ditherType
     @State private var ditherKernel: Constants.DitherKernel = Constants.Defaults.ditherKernel
     @State private var availableTasks: [DotTask] = []
@@ -530,6 +531,29 @@ struct PanelSettingsView: View {
                                 UserDefaults.standard.set(newValue, forKey: Constants.UserDefaultsKey.pushOnlyLearning)
                             }
                     }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+
+                    Divider().padding(.leading, 14)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("推送顺序")
+                            .font(.system(size: 14))
+                        Picker("推送顺序", selection: $pushRandomMode) {
+                            ForEach(Constants.PushRandomMode.allCases, id: \.self) { mode in
+                                Text(mode.displayName).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .fixedSize()
+                        .onChange(of: pushRandomMode) { _, newValue in
+                            UserDefaults.standard.set(newValue.rawValue, forKey: Constants.UserDefaultsKey.pushRandomMode)
+                        }
+                        Text(pushRandomMode.description)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
 
@@ -1307,6 +1331,8 @@ struct PanelSettingsView: View {
             ?? Constants.Defaults.pushIntervalMinutes
         pushOnlyLearning = UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.pushOnlyLearning) as? Bool
             ?? Constants.Defaults.pushOnlyLearning
+        pushRandomMode = UserDefaults.standard.string(forKey: Constants.UserDefaultsKey.pushRandomMode)
+            .flatMap { Constants.PushRandomMode(rawValue: $0) } ?? Constants.Defaults.pushRandomMode
         enableMnemonic = UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.enableMnemonic) as? Bool
             ?? Constants.Defaults.enableMnemonic
         showExamples = UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.showExamples) as? Bool

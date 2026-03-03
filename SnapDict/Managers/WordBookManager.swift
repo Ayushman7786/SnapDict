@@ -90,19 +90,40 @@ final class WordBookManager {
         let context = container.mainContext
         let pushOnlyLearning = UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.pushOnlyLearning) as? Bool
             ?? Constants.Defaults.pushOnlyLearning
-        var descriptor: FetchDescriptor<WordEntry>
-        if pushOnlyLearning {
-            descriptor = FetchDescriptor<WordEntry>(
-                predicate: #Predicate { !$0.isMastered },
-                sortBy: [SortDescriptor(\.pushCount), SortDescriptor(\.createdAt)]
-            )
-        } else {
-            descriptor = FetchDescriptor<WordEntry>(
-                sortBy: [SortDescriptor(\.pushCount), SortDescriptor(\.createdAt)]
-            )
+        let randomModeRaw = UserDefaults.standard.string(forKey: Constants.UserDefaultsKey.pushRandomMode)
+        let randomMode = randomModeRaw.flatMap { Constants.PushRandomMode(rawValue: $0) } ?? Constants.Defaults.pushRandomMode
+
+        switch randomMode {
+        case .allWords:
+            // 完全随机：从所有候选单词中随机选取，忽略推送次数
+            var descriptor: FetchDescriptor<WordEntry>
+            if pushOnlyLearning {
+                descriptor = FetchDescriptor<WordEntry>(predicate: #Predicate { !$0.isMastered })
+            } else {
+                descriptor = FetchDescriptor<WordEntry>()
+            }
+            guard let candidates = try? context.fetch(descriptor), !candidates.isEmpty else { return nil }
+            return candidates.randomElement()
+
+        case .minCount:
+            // 加权随机：权重 = 1 / (pushCount + 1)，低频单词概率更高，但高频单词也有机会被选到
+            var descriptor: FetchDescriptor<WordEntry>
+            if pushOnlyLearning {
+                descriptor = FetchDescriptor<WordEntry>(predicate: #Predicate { !$0.isMastered })
+            } else {
+                descriptor = FetchDescriptor<WordEntry>()
+            }
+            guard let candidates = try? context.fetch(descriptor), !candidates.isEmpty else { return nil }
+
+            let weights = candidates.map { 1.0 / Double($0.pushCount + 1) }
+            let totalWeight = weights.reduce(0, +)
+            var pick = Double.random(in: 0..<totalWeight)
+            for (entry, weight) in zip(candidates, weights) {
+                pick -= weight
+                if pick <= 0 { return entry }
+            }
+            return candidates.last
         }
-        descriptor.fetchLimit = 1
-        return try? context.fetch(descriptor).first
     }
 
     func lastPushedWord() -> WordEntry? {

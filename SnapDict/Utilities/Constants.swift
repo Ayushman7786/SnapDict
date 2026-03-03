@@ -38,6 +38,25 @@ enum Constants {
         }
     }
 
+    enum PushRandomMode: String, CaseIterable {
+        case minCount = "minCount"
+        case allWords = "allWords"
+
+        var displayName: String {
+            switch self {
+            case .minCount: return "优先低频"
+            case .allWords: return "完全随机"
+            }
+        }
+
+        var description: String {
+            switch self {
+            case .minCount: return "低频单词被选中概率更高，但所有单词都有机会出现"
+            case .allWords: return "从所有单词中随机选取，忽略推送次数"
+            }
+        }
+    }
+
     enum PushMode: String, CaseIterable {
         case text = "text"
         case image = "image"
@@ -113,6 +132,7 @@ enum Constants {
         static let hideOnFocusLost = "hideOnFocusLost"
         static let autoCorrect = "autoCorrect"
         static let autoFetchSelectedText = "autoFetchSelectedText"
+        static let pushRandomMode = "pushRandomMode"
         static let pushMode = "pushMode"
         static let ditherType = "ditherType"
         static let ditherKernel = "ditherKernel"
@@ -133,6 +153,7 @@ enum Constants {
         static let pushMode: PushMode = .text
         static let ditherType: DitherType = .none
         static let ditherKernel: DitherKernel = .floydSteinberg
+        static let pushRandomMode: PushRandomMode = .minCount
     }
 
     enum Notification {
