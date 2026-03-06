@@ -28,8 +28,13 @@ struct TranslationContentView: View {
     @State private var examplesError: String?
     @State private var mnemonicTask: Task<Void, Never>?
     @State private var examplesTask: Task<Void, Never>?
-    @State private var correctionDismissed = false
+    @State private var sentenceResult: SentenceTranslationResult?
+    @State private var currentInputType: InputType = .word
     @State private var shimmerPhase: CGFloat = -200
+
+    // 流式中间状态
+    @State private var partialWord: PartialWordResult?
+    @State private var partialSentence: PartialSentenceResult?
 
     private let synthesizer = AVSpeechSynthesizer()
 
@@ -39,7 +44,8 @@ struct TranslationContentView: View {
 
     // 判断是否有内容显示（需要展开窗口）
     private var hasContent: Bool {
-        isLoading || errorMessage != nil || result != nil
+        isLoading || errorMessage != nil || result != nil || sentenceResult != nil
+            || partialWord != nil || partialSentence != nil
     }
 
     /// 是否有任何骨架屏可见（主骨架屏或助记/例句骨架屏），用于控制闪烁动画
@@ -53,7 +59,6 @@ struct TranslationContentView: View {
 
     /// 骨架屏预估内容高度，用于在 onGeometryChange 触发前立即展开面板
     private var estimatedSkeletonContentHeight: CGFloat {
-        // 基础：单词行 + 2 行翻译 + 间距 + padding
         var h: CGFloat = 106
         if UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.enableMnemonic) as? Bool
             ?? Constants.Defaults.enableMnemonic { h += 99 }
@@ -70,7 +75,7 @@ struct TranslationContentView: View {
                     .foregroundStyle(.tertiary)
                     .font(.system(size: 22, weight: .light))
 
-                TextField("输入单词或短语...", text: $query)
+                TextField("输入单词、短句或中文...", text: $query)
                     .textFieldStyle(.plain)
                     .font(.system(size: 22, weight: .light))
                     .focused($isInputFocused)
@@ -124,10 +129,21 @@ struct TranslationContentView: View {
                                 Spacer()
                             }
                             .padding(.top, 40)
-                        } else if let result {
+                        } else if currentInputType == .word, let result {
                             resultView(result)
+                        } else if currentInputType == .word, let partial = partialWord {
+                            partialResultView(partial)
+                        } else if let sentenceResult {
+                            SentenceTranslationView(
+                                originalText: query,
+                                result: sentenceResult,
+                                inputType: currentInputType
+                            )
+                        } else if let partial = partialSentence {
+                            partialSentenceView(partial)
                         }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(16)
                     .onGeometryChange(for: CGFloat.self) { proxy in
                         proxy.size.height
@@ -137,7 +153,7 @@ struct TranslationContentView: View {
                 }
             }
         }
-        .frame(width: 420)
+        .frame(maxWidth: .infinity)
         .background(.clear)
         .onChange(of: contentHeight) { _, newHeight in
             if hasContent {
@@ -146,14 +162,10 @@ struct TranslationContentView: View {
         }
         .onChange(of: hasContent) { _, newValue in
             if newValue {
-                // 立即上报预估内容高度，触发面板展开，
-                // 不等待 onGeometryChange 异步布局回调。
-                // 防止快速 API 响应在布局完成前到达导致面板不展开。
                 if contentHeight <= 0 {
                     onContentHeightChange?(estimatedSkeletonContentHeight)
                 }
             } else {
-                // 重置，确保下次内容出现时 onChange(of: contentHeight) 可靠触发
                 contentHeight = 0
             }
             DispatchQueue.main.async {
@@ -163,7 +175,6 @@ struct TranslationContentView: View {
         .onChange(of: resetID) { _, _ in
             resetState()
             if isActive { isInputFocused = true }
-            // reset 后检查是否有待填入的选中文字
             if let text = initialQuery, !text.isEmpty {
                 query = text
                 initialQuery = nil
@@ -171,7 +182,6 @@ struct TranslationContentView: View {
             }
         }
         .onChange(of: initialQuery) { _, newValue in
-            // 非 reset 场景下的选中文字填入（面板未重置时）
             if let text = newValue, !text.isEmpty {
                 query = text
                 initialQuery = nil
@@ -218,7 +228,6 @@ struct TranslationContentView: View {
             .frame(width: width, height: height)
     }
 
-    /// 为骨架内容添加从左到右扫过的光波闪烁效果
     private func withShimmer<Content: View>(@ViewBuilder content: @escaping () -> Content) -> some View {
         content()
             .overlay(
@@ -242,7 +251,6 @@ struct TranslationContentView: View {
 
         withShimmer {
             VStack(alignment: .leading, spacing: 12) {
-                // 单词行：word + phonetic + bookmark
                 HStack {
                     skeletonLine(width: 120, height: 22)
                     skeletonLine(width: 60, height: 15)
@@ -250,11 +258,9 @@ struct TranslationContentView: View {
                     skeletonLine(width: 20, height: 20)
                 }
 
-                // 翻译
                 skeletonLine(width: 280)
                 skeletonLine(width: 180)
 
-                // 助记
                 if enableMnemonic {
                     Divider()
                         .padding(.vertical, 4)
@@ -267,7 +273,6 @@ struct TranslationContentView: View {
                     skeletonLine(width: 300)
                 }
 
-                // 例句
                 if showExamples {
                     Divider()
                         .padding(.vertical, 4)
@@ -304,6 +309,270 @@ struct TranslationContentView: View {
             VStack(alignment: .leading, spacing: 8) {
                 skeletonLine(width: 340)
                 skeletonLine(width: 260)
+            }
+        }
+    }
+
+    // MARK: - Partial Result Views (流式)
+
+    @ViewBuilder
+    private func partialResultView(_ partial: PartialWordResult) -> some View {
+        if partial.notFound {
+            notFoundView(partial)
+        } else {
+        // 拼写纠正提示（流式阶段也显示）
+        partialCorrectionBanner(partial)
+
+        // Word + phonetic + speak/save buttons
+        if let word = partial.word {
+            HStack(alignment: .center) {
+                Text(word)
+                    .font(.system(size: 22, weight: .semibold))
+
+                if let phonetic = partial.phonetic, !phonetic.isEmpty {
+                    Text(phonetic)
+                        .font(.system(size: 15, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                }
+
+                Button {
+                    speakWord(word)
+                } label: {
+                    Image(systemName: isSpeaking ? "waveform" : "speaker.wave.2")
+                        .font(.system(size: 16))
+                        .foregroundStyle(isSpeaking ? Color.accentColor : .secondary)
+                        .symbolEffect(.variableColor, isActive: isSpeaking)
+                }
+                .buttonStyle(.plain)
+                .help("朗读 (⌘S)")
+                .keyboardShortcut("s", modifiers: .command)
+
+                Spacer()
+
+                Button {
+                    toggleSavePartialWord(partial)
+                } label: {
+                    Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
+                        .font(.system(size: 18))
+                        .foregroundStyle(isSaved ? .orange : .secondary)
+                }
+                .buttonStyle(.plain)
+                .help(isSaved ? "取消收藏 (⌘D)" : "保存到生词本 (⌘D)")
+                .keyboardShortcut("d", modifiers: .command)
+            }
+        } else {
+            HStack {
+                skeletonLine(width: 120, height: 22)
+                skeletonLine(width: 60, height: 15)
+                Spacer()
+            }
+        }
+
+        // Translation（逐字流入）
+        if let translation = partial.translation {
+            Text(translation)
+                .font(.system(size: 16))
+                .foregroundStyle(.primary)
+                .textSelection(.enabled)
+        } else {
+            withShimmer {
+                VStack(alignment: .leading, spacing: 8) {
+                    skeletonLine(width: 280)
+                    skeletonLine(width: 180)
+                }
+            }
+        }
+
+        // Etymology（逐字流入）
+        let enableMnemonic = UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.enableMnemonic) as? Bool
+            ?? Constants.Defaults.enableMnemonic
+        let isPhrase = query.trimmingCharacters(in: .whitespacesAndNewlines).contains(" ")
+
+        if enableMnemonic && !isPhrase {
+            if partial.etymology != nil || partial.association != nil {
+                Divider()
+                    .padding(.vertical, 4)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "lightbulb")
+                            .font(.system(size: 12))
+                        Text("助记")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if let etymology = partial.etymology {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("词根")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.tertiary)
+                            Text(etymology)
+                                .font(.system(size: 14))
+                                .foregroundStyle(.primary)
+                                .textSelection(.enabled)
+                        }
+                    }
+
+                    if let association = partial.association {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("联想")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.tertiary)
+                            Text(association)
+                                .font(.system(size: 14))
+                                .foregroundStyle(.primary)
+                                .textSelection(.enabled)
+                        }
+                    }
+                }
+            } else if partial.translation != nil {
+                // translation 已出现但 etymology 还没来，显示骨架
+                Divider()
+                    .padding(.vertical, 4)
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "lightbulb")
+                            .font(.system(size: 12))
+                        Text("助记")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
+                    }
+                    mnemonicSkeletonContent()
+                }
+            }
+        }
+
+        // Examples
+        let showExamples = UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.showExamples) as? Bool
+            ?? Constants.Defaults.showExamples
+
+        if showExamples {
+            if !partial.examples.isEmpty {
+                Divider()
+                    .padding(.vertical, 4)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "text.quote")
+                            .font(.system(size: 12))
+                        Text("例句")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    ForEach(partial.examples, id: \.self) { example in
+                        Text(example)
+                            .font(.system(size: 14))
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
+                }
+            } else if partial.translation != nil {
+                // translation 已出现但 examples 还没来，显示骨架
+                Divider()
+                    .padding(.vertical, 4)
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "text.quote")
+                            .font(.system(size: 12))
+                        Text("例句")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
+                    }
+                    examplesSkeletonContent()
+                }
+            }
+        }
+        } // else notFound
+    }
+
+    @ViewBuilder
+    private func notFoundView(_ partial: PartialWordResult) -> some View {
+        HStack {
+            Spacer()
+            VStack(spacing: 12) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 32))
+                    .foregroundStyle(.secondary)
+                Text("未找到该词")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(.secondary)
+                if let suggestion = partial.suggestion, !suggestion.isEmpty {
+                    Button {
+                        query = suggestion
+                        debounceTask?.cancel()
+                        performTranslation()
+                    } label: {
+                        Text("查询 \(suggestion)")
+                            .font(.system(size: 13))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
+            Spacer()
+        }
+        .padding(.top, 40)
+    }
+
+    @ViewBuilder
+    private func partialSentenceView(_ partial: PartialSentenceResult) -> some View {
+        // 原文
+        Text(query)
+            .font(.system(size: 14))
+            .foregroundStyle(.secondary)
+            .textSelection(.enabled)
+            .lineLimit(3)
+
+        // 译文（逐字流入）
+        if let translation = partial.translation {
+            Text(translation)
+                .font(.system(size: 18, weight: .medium))
+                .foregroundStyle(.primary)
+                .textSelection(.enabled)
+        } else {
+            withShimmer {
+                VStack(alignment: .leading, spacing: 8) {
+                    skeletonLine(width: 300)
+                    skeletonLine(width: 220)
+                }
+            }
+        }
+
+        // 解析（逐字流入）
+        let showAnalysis = UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.showAnalysis) as? Bool
+            ?? Constants.Defaults.showAnalysis
+
+        if showAnalysis {
+            if let analysis = partial.analysis, !analysis.isEmpty {
+                Divider()
+                    .padding(.vertical, 2)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "text.book.closed")
+                            .font(.system(size: 12))
+                        Text(currentInputType == .chinese ? "用法说明" : "语法解析")
+                            .font(.system(size: 13))
+                    }
+                    .foregroundStyle(.secondary)
+
+                    Text(analysis)
+                        .font(.system(size: 14))
+                        .foregroundStyle(.primary)
+                        .textSelection(.enabled)
+                }
+            } else if partial.translation != nil {
+                Divider()
+                    .padding(.vertical, 2)
+                withShimmer {
+                    VStack(alignment: .leading, spacing: 6) {
+                        skeletonLine(width: 60, height: 13)
+                        skeletonLine(width: 300)
+                        skeletonLine(width: 240)
+                    }
+                }
             }
         }
     }
@@ -368,7 +637,6 @@ struct TranslationContentView: View {
     @ViewBuilder
     private func correctionBanner(_ result: TranslationResult) -> some View {
         if let originalInput = result.originalInput {
-            // 自动纠正已执行：显示纠正信息 + 回退按钮
             HStack(spacing: 6) {
                 Image(systemName: "character.cursor.ibeam")
                     .font(.system(size: 12))
@@ -385,33 +653,28 @@ struct TranslationContentView: View {
                 .foregroundStyle(Color.accentColor)
             }
             .foregroundStyle(.secondary)
-        } else if let suggestion = result.suggestedCorrection, !correctionDismissed {
-            // 未自动纠正但检测到可能拼写错误：提示用户
+        }
+    }
+
+    @ViewBuilder
+    private func partialCorrectionBanner(_ partial: PartialWordResult) -> some View {
+        if let originalInput = partial.originalInput {
             HStack(spacing: 6) {
-                Image(systemName: "exclamationmark.circle")
+                Image(systemName: "character.cursor.ibeam")
                     .font(.system(size: 12))
-                    .foregroundStyle(.orange)
-                Text("可能拼写有误，你要找的是 \"\(suggestion)\" 吗？")
+                Text("已自动纠正: \"\(originalInput)\" → \"\(partial.word ?? "")\"")
                     .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
                 Spacer()
                 Button {
-                    queryWithSuggestion(suggestion)
+                    queryWithOriginalInput(originalInput)
                 } label: {
-                    Text("查询 \(suggestion)")
+                    Text("仍查询 \(originalInput)")
                         .font(.system(size: 12))
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(Color.accentColor)
-                Button {
-                    correctionDismissed = true
-                } label: {
-                    Text("忽略")
-                        .font(.system(size: 12))
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
             }
+            .foregroundStyle(.secondary)
         }
     }
 
@@ -419,10 +682,15 @@ struct TranslationContentView: View {
         let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
 
-        correctionDismissed = false
+        let inputType = InputClassifier.classify(text)
+        currentInputType = inputType
+
         isLoading = true
         errorMessage = nil
         result = nil
+        sentenceResult = nil
+        partialWord = nil
+        partialSentence = nil
         isSaved = false
         isMnemonicLoading = false
         isExamplesLoading = false
@@ -431,70 +699,80 @@ struct TranslationContentView: View {
         mnemonicTask?.cancel()
         examplesTask?.cancel()
 
+        PanelManager.shared.updatePanelWidth(for: inputType)
+
         translationTask = Task {
-            // 阶段 1：查词
-            do {
-                let translationResult = try await DeepSeekService.shared.translateWord(text, forceNoAutoCorrect: forceNoAutoCorrect)
-                guard !Task.isCancelled else { return }
-                self.result = translationResult
-                self.isLoading = false
-                self.isSaved = WordBookManager.shared.isWordSaved(translationResult.word)
+            switch inputType {
+            case .word:
+                do {
+                    for try await partial in DeepSeekService.shared.translateWordStreaming(text, forceNoAutoCorrect: forceNoAutoCorrect) {
+                        guard !Task.isCancelled else { return }
 
-                // 阶段 2：并行获取助记和例句
-                let correctedWord = translationResult.word
-                let translation = translationResult.translation
-
-                let enableMnemonic = UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.enableMnemonic) as? Bool
-                    ?? Constants.Defaults.enableMnemonic
-                let showExamples = UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.showExamples) as? Bool
-                    ?? Constants.Defaults.showExamples
-
-                if enableMnemonic {
-                    mnemonicTask = Task {
-                        isMnemonicLoading = true
-                        mnemonicError = nil
-                        do {
-                            let mnemonic = try await DeepSeekService.shared.fetchMnemonic(correctedWord)
-                            guard !Task.isCancelled else { return }
-                            self.result?.etymology = mnemonic.etymology
-                            self.result?.association = mnemonic.association
-                        } catch {
-                            guard !Task.isCancelled else { return }
-                            self.mnemonicError = error.localizedDescription
+                        if (partial.phonetic != nil || partial.notFound) && isLoading {
+                            isLoading = false
                         }
-                        self.isMnemonicLoading = false
+
+                        if partial.isComplete {
+                            if partial.notFound {
+                                // notFound 保持在 partialWord 显示空状态，不转为 result
+                                partialWord = partial
+                            } else {
+                                // 流式完成，转为正式 result
+                                result = TranslationResult(
+                                    word: partial.word ?? "",
+                                    phonetic: partial.phonetic ?? "",
+                                    translation: partial.translation ?? "",
+                                    examples: partial.examples,
+                                    originalInput: partial.originalInput,
+                                    etymology: partial.etymology,
+                                    association: partial.association
+                                )
+                                partialWord = nil
+                                isSaved = WordBookManager.shared.isWordSaved(result!.word)
+                            }
+                        } else {
+                            partialWord = partial
+                        }
                     }
+                } catch {
+                    guard !Task.isCancelled else { return }
+                    self.errorMessage = error.localizedDescription
+                    self.isLoading = false
+                    self.partialWord = nil
                 }
 
-                if showExamples {
-                    examplesTask = Task {
-                        isExamplesLoading = true
-                        examplesError = nil
-                        do {
-                            let examples = try await DeepSeekService.shared.fetchExamples(correctedWord, translation: translation)
-                            guard !Task.isCancelled else { return }
-                            self.result?.examples = examples
-                        } catch {
-                            guard !Task.isCancelled else { return }
-                            self.examplesError = error.localizedDescription
+            case .sentence, .chinese:
+                do {
+                    for try await partial in DeepSeekService.shared.translateSentenceStreaming(text, inputType: inputType) {
+                        guard !Task.isCancelled else { return }
+
+                        if partial.translation != nil && isLoading {
+                            isLoading = false
                         }
-                        self.isExamplesLoading = false
+
+                        if partial.isComplete {
+                            sentenceResult = SentenceTranslationResult(
+                                translation: partial.translation ?? "",
+                                analysis: partial.analysis
+                            )
+                            partialSentence = nil
+                        } else {
+                            partialSentence = partial
+                        }
                     }
+                } catch {
+                    guard !Task.isCancelled else { return }
+                    self.errorMessage = error.localizedDescription
+                    self.isLoading = false
+                    self.partialSentence = nil
                 }
-            } catch {
-                guard !Task.isCancelled else { return }
-                self.errorMessage = error.localizedDescription
-                self.isLoading = false
             }
         }
     }
 
     private func debounceAutoTranslate(_ text: String) {
-        // 取消防抖任务
         debounceTask?.cancel()
-        // 若有正在进行的查询，立即中断并清除结果，等待用户输入完成后重新查询
-        // 保持 isLoading = true 让骨架屏持续显示，避免面板塌缩闪烁
-        if isLoading || isMnemonicLoading || isExamplesLoading {
+        if isLoading || isMnemonicLoading || isExamplesLoading || partialWord != nil || partialSentence != nil {
             translationTask?.cancel()
             mnemonicTask?.cancel()
             examplesTask?.cancel()
@@ -502,6 +780,9 @@ struct TranslationContentView: View {
             isMnemonicLoading = false
             isExamplesLoading = false
             result = nil
+            sentenceResult = nil
+            partialWord = nil
+            partialSentence = nil
             errorMessage = nil
             mnemonicError = nil
             examplesError = nil
@@ -525,15 +806,18 @@ struct TranslationContentView: View {
         isExamplesLoading = false
         query = ""
         result = nil
+        sentenceResult = nil
+        partialWord = nil
+        partialSentence = nil
+        currentInputType = .word
+        PanelManager.shared.updatePanelWidth(for: .word)
         errorMessage = nil
         mnemonicError = nil
         examplesError = nil
         isSaved = false
-        correctionDismissed = false
     }
 
     private func speakWord(_ word: String) {
-        // 若正在播放则停止
         if isSpeaking {
             synthesizer.stopSpeaking(at: .immediate)
             Task { await ByteDanceTTSService.shared.stop() }
@@ -768,18 +1052,48 @@ struct TranslationContentView: View {
         }
     }
 
-    /// 用户选择使用原始输入重新查询（强制不纠正）
     private func queryWithOriginalInput(_ text: String) {
-        query = text
+        // 1. 立即停止当前所有任务
         debounceTask?.cancel()
-        performTranslation(forceNoAutoCorrect: true)
+        translationTask?.cancel()
+        mnemonicTask?.cancel()
+        examplesTask?.cancel()
+
+        // 2. 重置为骨架屏状态
+        result = nil
+        partialWord = nil
+        partialSentence = nil
+        sentenceResult = nil
+        errorMessage = nil
+        isMnemonicLoading = false
+        isExamplesLoading = false
+        mnemonicError = nil
+        examplesError = nil
+        isLoading = true
+        isSaved = false
+
+        // 3. 更新输入框文字（会触发 onChange → debounceAutoTranslate）
+        query = text
+
+        // 4. 在下一个 run loop 执行，确保在 onChange 的 debounce 之后
+        //    取消 debounce 创建的任务，启动 forceNoAutoCorrect 翻译
+        Task { @MainActor in
+            debounceTask?.cancel()
+            performTranslation(forceNoAutoCorrect: true)
+        }
     }
 
-    /// 用户选择使用建议的纠正词查询
-    private func queryWithSuggestion(_ text: String) {
-        query = text
-        debounceTask?.cancel()
-        performTranslation()
+    private func toggleSavePartialWord(_ partial: PartialWordResult) {
+        let result = TranslationResult(
+            word: partial.word ?? "",
+            phonetic: partial.phonetic ?? "",
+            translation: partial.translation ?? "",
+            examples: partial.examples,
+            originalInput: partial.originalInput,
+            etymology: partial.etymology,
+            association: partial.association
+        )
+        toggleSaveWord(result)
     }
 
     private func toggleSaveWord(_ result: TranslationResult) {
@@ -795,4 +1109,5 @@ struct TranslationContentView: View {
             errorMessage = error.localizedDescription
         }
     }
+
 }

@@ -7,7 +7,9 @@ final class PanelManager: NSObject, NSWindowDelegate {
     static let shared = PanelManager()
 
     private var panel: TranslationPanel?
-    private let panelWidth: CGFloat = 420
+    private var panelWidth: CGFloat = 420
+    private let wordPanelWidth: CGFloat = 420
+    private let sentencePanelWidth: CGFloat = 840
 
     // 查词 Tab 高度
     private let compactHeight: CGFloat = 98      // 紧凑：仅搜索框 (tabBar + searchArea)
@@ -184,6 +186,30 @@ final class PanelManager: NSObject, NSWindowDelegate {
         resizePanel(to: target, animated: false)
     }
 
+    func updatePanelWidth(for inputType: InputType) {
+        let targetWidth = (inputType == .word) ? wordPanelWidth : sentencePanelWidth
+        guard panelWidth != targetWidth else { return }
+        panelWidth = targetWidth
+
+        guard let panel else { return }
+        var frame = panel.frame
+        let oldWidth = frame.size.width
+        frame.size.width = targetWidth
+        // 保持窗口中心 X 不变
+        frame.origin.x -= (targetWidth - oldWidth) / 2
+
+        // 更新 min/max size
+        let screenHeight = NSScreen.main?.visibleFrame.height ?? 1000
+        panel.minSize = NSSize(width: targetWidth, height: compactHeight)
+        panel.maxSize = NSSize(width: targetWidth, height: screenHeight)
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.25
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            panel.animator().setFrame(frame, display: true)
+        }
+    }
+
     func updateTranslationContentHeight(_ height: CGFloat) {
         translationContentHeight = height
         guard currentTab == .translation, panel != nil else { return }
@@ -326,10 +352,13 @@ final class PanelManager: NSObject, NSWindowDelegate {
 
         var frame = panel.frame
         let oldHeight = frame.height
+        let oldWidth = frame.width
         frame.size.height = height
         frame.size.width = panelWidth
         // 保持窗口顶部位置不变，从底部调整
         frame.origin.y += (oldHeight - height)
+        // 保持窗口中心 X 不变
+        frame.origin.x -= (panelWidth - oldWidth) / 2
 
         // 始终通过 animator 设置 frame，确保新调用替换旧的帧动画，
         // 避免快速切换时 non-animated setFrame 与旧 animated setFrame 竞争

@@ -1,7 +1,7 @@
 import Foundation
 import AVFoundation
 
-/// 豆包 TTS 服务，调用字节跳动语音合成 V3 HTTP API
+/// 豆包 TTS 服务，调用字节跳动语音合成 V3 SSE API
 actor ByteDanceTTSService {
     static let shared = ByteDanceTTSService()
 
@@ -50,44 +50,48 @@ actor ByteDanceTTSService {
         request.timeoutInterval = 30
 
         let body: [String: Any] = [
+            "user": [
+                "uid": "snapdict_user"
+            ],
             "req_params": [
                 "text": text,
                 "speaker": speaker,
-                "additions": "{\"disable_markdown_filter\":true,\"enable_language_detector\":true,\"enable_latex_tn\":true,\"disable_default_bit_rate\":true,\"max_length_to_filter_parenthesis\":0,\"cache_config\":{\"text_type\":1,\"use_cache\":true}}",
+                "additions": "{\"disable_markdown_filter\":true,\"enable_language_detector\":true}",
                 "audio_params": [
                     "format": "mp3",
-                    "sample_rate": 24000
+                    "sample_rate": 24000,
+                    "loudness_rate": 100
                 ]
             ]
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        // 使用 bytes(for:) 流式读取 SSE 响应
+        let (bytes, response) = try await URLSession.shared.bytes(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw TTSError.invalidResponse
         }
         guard httpResponse.statusCode == 200 else {
-            let message = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])
-                .flatMap { $0["message"] as? String } ?? "HTTP \(httpResponse.statusCode)"
-            throw TTSError.apiError(message)
-        }
-
-        // V3 接口返回 NDJSON（多个 JSON 对象换行拼接），每个对象的 data 字段是 base64 音频分片
-        guard let responseText = String(data: data, encoding: .utf8) else {
-            throw TTSError.parseError
+            throw TTSError.apiError("HTTP \(httpResponse.statusCode)")
         }
 
         var audioData = Data()
-        let lines = responseText.components(separatedBy: "\n")
-        for line in lines {
-            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty,
-                  let lineData = trimmed.data(using: .utf8),
+
+        // 逐行解析 SSE 事件，每个 data: 行立即处理
+        for try await line in bytes.lines {
+            // SSE 格式: "data: {json}" 或 "data:{json}"
+            let dataPrefix = "data:"
+            guard line.hasPrefix(dataPrefix) else { continue }
+
+            let jsonStr = String(line.dropFirst(dataPrefix.count)).trimmingCharacters(in: .whitespaces)
+            guard !jsonStr.isEmpty,
+                  let lineData = jsonStr.data(using: .utf8),
                   let json = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any]
             else { continue }
 
-            if let code = json["code"] as? Int, code != 0, code != 20000000 {
+            let code = json["code"] as? Int ?? 0
+            if code != 0 && code != 20000000 {
                 let message = json["message"] as? String ?? "错误码 \(code)"
                 throw TTSError.apiError(message)
             }
@@ -95,10 +99,13 @@ actor ByteDanceTTSService {
                let partData = Data(base64Encoded: part) {
                 audioData.append(partData)
             }
+            if code == 20000000 {
+                break
+            }
         }
 
         guard !audioData.isEmpty else {
-            throw TTSError.parseError
+            throw TTSError.parseError("未收到音频数据")
         }
         return audioData
     }
@@ -125,7 +132,7 @@ actor ByteDanceTTSService {
         case missingAPIKey
         case invalidURL
         case invalidResponse
-        case parseError
+        case parseError(String)
         case apiError(String)
 
         var errorDescription: String? {
@@ -133,7 +140,7 @@ actor ByteDanceTTSService {
             case .missingAPIKey: return "请先在设置中填写豆包 TTS App ID 和 Access Key"
             case .invalidURL: return "无效的 API 地址"
             case .invalidResponse: return "无效的服务器响应"
-            case .parseError: return "解析音频数据失败"
+            case .parseError(let detail): return "解析音频数据失败: \(detail)"
             case .apiError(let msg): return "API 错误: \(msg)"
             }
         }

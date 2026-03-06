@@ -47,62 +47,66 @@ struct PanelWordBookView: View {
     }
 
     var body: some View {
-        let currentWords = filteredWords
         VStack(spacing: 0) {
-            // 工具栏
-            compactToolbar
+            toolbar
 
             Divider()
 
-            // 内容区
-            if currentWords.isEmpty {
-                ContentUnavailableView {
-                    Label(
-                        searchText.isEmpty ? "暂无生词" : "未找到匹配结果",
-                        systemImage: searchText.isEmpty ? "books.vertical" : "magnifyingglass"
-                    )
-                } description: {
-                    Text(searchText.isEmpty
-                         ? (filter == .all ? "翻译时点击书签图标保存生词" : "当前分类下暂无单词")
-                         : "试试其他关键词")
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                ScrollView {
-                    LazyVStack(spacing: 6) {
-                        ForEach(currentWords) { entry in
-                            CompactWordRow(
-                                entry: entry,
-                                isSelected: selectedEntry?.id == entry.id,
-                                onTap: {
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
-                                        if selectedEntry?.id == entry.id {
-                                            selectedEntry = nil
-                                        } else {
-                                            selectedEntry = entry
-                                        }
+            wordBookContent
+        }
+    }
+
+    @ViewBuilder
+    private var wordBookContent: some View {
+        let currentWords = filteredWords
+
+        if currentWords.isEmpty {
+            ContentUnavailableView {
+                Label(
+                    searchText.isEmpty ? "暂无生词" : "未找到匹配结果",
+                    systemImage: searchText.isEmpty ? "books.vertical" : "magnifyingglass"
+                )
+            } description: {
+                Text(searchText.isEmpty
+                     ? (filter == .all ? "翻译时点击书签图标保存生词" : "当前分类下暂无单词")
+                     : "试试其他关键词")
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            ScrollView {
+                LazyVStack(spacing: 6) {
+                    ForEach(currentWords) { entry in
+                        CompactWordRow(
+                            entry: entry,
+                            isSelected: selectedEntry?.id == entry.id,
+                            onTap: {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                                    if selectedEntry?.id == entry.id {
+                                        selectedEntry = nil
+                                    } else {
+                                        selectedEntry = entry
                                     }
-                                },
-                                onDelete: {
-                                    if selectedEntry?.id == entry.id { selectedEntry = nil }
-                                    try? WordBookManager.shared.deleteWord(entry)
-                                },
-                                onToggleMastered: {
-                                    try? WordBookManager.shared.toggleMastered(entry)
                                 }
-                            )
-                        }
+                            },
+                            onDelete: {
+                                if selectedEntry?.id == entry.id { selectedEntry = nil }
+                                try? WordBookManager.shared.deleteWord(entry)
+                            },
+                            onToggleMastered: {
+                                try? WordBookManager.shared.toggleMastered(entry)
+                            }
+                        )
                     }
-                    .padding(10)
                 }
+                .padding(10)
             }
         }
     }
 
     // MARK: - Toolbar
 
-    private var compactToolbar: some View {
-        HStack(spacing: 8) {
+    private var toolbar: some View {
+        HStack(spacing: 6) {
             // 搜索框
             HStack(spacing: 5) {
                 Image(systemName: "magnifyingglass")
@@ -125,7 +129,6 @@ struct PanelWordBookView: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
             .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
-            .frame(maxWidth: 140)
 
             // 筛选胶囊
             HStack(spacing: 3) {
@@ -137,6 +140,8 @@ struct PanelWordBookView: View {
                     } label: {
                         Text("\(f.rawValue) \(countForFilter(f))")
                             .font(.system(size: 12))
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
                             .padding(.horizontal, 9)
                             .padding(.vertical, 4)
                             .background(
@@ -155,6 +160,7 @@ struct PanelWordBookView: View {
                     .buttonStyle(.plain)
                 }
             }
+            .fixedSize(horizontal: true, vertical: false)
 
             Spacer()
 
@@ -317,4 +323,3 @@ private struct CompactWordRow: View {
         .onTapGesture(perform: onTap)
     }
 }
-

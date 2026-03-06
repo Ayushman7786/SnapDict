@@ -1,5 +1,5 @@
 {
-  "originHash" : "01f286328852d165d87f8fbee99b01f9c2c936f57ac234f76396f74f9d2496dd",
+  "originHash" : "25eb6f76b34cddaf496b5f39572118db4a608a686ddaa549286ebc282a2070c2",
   "pins" : [
     {
       "identity" : "hotkey",
@@ -8,6 +8,15 @@
       "state" : {
         "revision" : "a3cf605d7a96f6ff50e04fcb6dea6e2613cfcbe4",
         "version" : "0.2.1"
+      }
+    },
+    {
+      "identity" : "partialjson",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/itruf/PartialJSON",
+      "state" : {
+        "revision" : "051f51d551026c056c5ee7ddd0310f7813484a8f",
+        "version" : "0.0.2"
       }
     }
   ],

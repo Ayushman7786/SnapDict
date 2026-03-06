@@ -98,12 +98,71 @@ final class CacheService: @unchecked Sendable {
         }
     }
 
+    // MARK: - Sentence Translation Cache
+
+    func getCachedSentenceTranslation(for key: String) -> SentenceTranslationResult? {
+        return queue.sync {
+            guard let container = modelContainer else { return nil }
+            let context = ModelContext(container)
+            let descriptor = FetchDescriptor<TranslationCache>(
+                predicate: #Predicate { $0.word == key }
+            )
+            guard let cached = try? context.fetch(descriptor).first,
+                  let data = cached.jsonData.data(using: .utf8) else {
+                return nil
+            }
+            return try? JSONDecoder().decode(SentenceTranslationResult.self, from: data)
+        }
+    }
+
+    func cacheSentenceTranslation(_ result: SentenceTranslationResult, for key: String) {
+        guard let jsonData = try? JSONEncoder().encode(result),
+              let jsonString = String(data: jsonData, encoding: .utf8) else { return }
+
+        queue.sync {
+            guard let container = modelContainer else { return }
+            let context = ModelContext(container)
+            let descriptor = FetchDescriptor<TranslationCache>(
+                predicate: #Predicate { $0.word == key }
+            )
+            if let existing = try? context.fetch(descriptor).first {
+                existing.jsonData = jsonString
+                existing.createdAt = .now
+            } else {
+                context.insert(TranslationCache(word: key, jsonData: jsonString))
+            }
+            try? context.save()
+        }
+    }
+
     func clearTranslationCache() {
         queue.sync {
             guard let container = modelContainer else { return }
             let context = ModelContext(container)
-            try? context.delete(model: TranslationCache.self)
-            try? context.save()
+            // 仅删除单词缓存（不含 "s:" 前缀的句子缓存）
+            let prefix = "s:"
+            let descriptor = FetchDescriptor<TranslationCache>(
+                predicate: #Predicate { !$0.word.starts(with: prefix) }
+            )
+            if let entries = try? context.fetch(descriptor) {
+                for entry in entries { context.delete(entry) }
+                try? context.save()
+            }
+        }
+    }
+
+    func clearSentenceCache() {
+        queue.sync {
+            guard let container = modelContainer else { return }
+            let context = ModelContext(container)
+            let prefix = "s:"
+            let descriptor = FetchDescriptor<TranslationCache>(
+                predicate: #Predicate { $0.word.starts(with: prefix) }
+            )
+            if let entries = try? context.fetch(descriptor) {
+                for entry in entries { context.delete(entry) }
+                try? context.save()
+            }
         }
     }
 
@@ -160,14 +219,22 @@ final class CacheService: @unchecked Sendable {
         }
     }
 
-    /// 返回 (翻译条目数, 音频条目数)
-    func cacheCounts() -> (translation: Int, tts: Int) {
+    /// 返回 (单词翻译条目数, 音频条目数, 句子翻译条目数)
+    func cacheCounts() -> (translation: Int, tts: Int, sentence: Int) {
         queue.sync {
-            guard let container = modelContainer else { return (0, 0) }
+            guard let container = modelContainer else { return (0, 0, 0) }
             let context = ModelContext(container)
-            let tCount = (try? context.fetchCount(FetchDescriptor<TranslationCache>())) ?? 0
+            let prefix = "s:"
+            let wordDesc = FetchDescriptor<TranslationCache>(
+                predicate: #Predicate { !$0.word.starts(with: prefix) }
+            )
+            let sentenceDesc = FetchDescriptor<TranslationCache>(
+                predicate: #Predicate { $0.word.starts(with: prefix) }
+            )
+            let tCount = (try? context.fetchCount(wordDesc)) ?? 0
+            let sCount = (try? context.fetchCount(sentenceDesc)) ?? 0
             let aCount = (try? context.fetchCount(FetchDescriptor<TTSCache>())) ?? 0
-            return (tCount, aCount)
+            return (tCount, aCount, sCount)
         }
     }
 

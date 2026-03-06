@@ -85,10 +85,11 @@ struct PanelSettingsView: View {
     @State private var isRecordingShortcut = false
     @State private var enableMnemonic: Bool = Constants.Defaults.enableMnemonic
     @State private var showExamples: Bool = Constants.Defaults.showExamples
+    @State private var showAnalysis: Bool = Constants.Defaults.showAnalysis
     @State private var hideOnFocusLost: Bool = Constants.Defaults.hideOnFocusLost
-    @State private var autoCorrect: Bool = Constants.Defaults.autoCorrect
     @State private var autoFetchSelectedText: Bool = Constants.Defaults.autoFetchSelectedText
     @State private var accessibilityGranted: Bool = false
+    @State private var accessibilityPollTimer: Timer?
     @State private var eventMonitor: Any?
 
     // API test states
@@ -157,26 +158,11 @@ struct PanelSettingsView: View {
                                 savedKey: $savedDeepSeekKey,
                                 saveState: $deepSeekSaveState,
                                 setState: { deepSeekTestState = $0 },
-                                action: { _ = try await DeepSeekService.shared.translateWord("hello") }
+                                action: { _ = try await DeepSeekService.shared.testAPI() }
                             )
                         },
                         onTest: { testDeepSeek() }
                     )
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-
-                    Divider().padding(.leading, 14)
-
-                    HStack {
-                        Text("自动纠正拼写")
-                        Spacer()
-                        Toggle("", isOn: $autoCorrect)
-                            .toggleStyle(.switch)
-                            .labelsHidden()
-                            .onChange(of: autoCorrect) { _, newValue in
-                                UserDefaults.standard.set(newValue, forKey: Constants.UserDefaultsKey.autoCorrect)
-                            }
-                    }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
 
@@ -219,6 +205,21 @@ struct PanelSettingsView: View {
 
                     Divider().padding(.leading, 14)
 
+                    HStack {
+                        Text("显示语法解析")
+                        Spacer()
+                        Toggle("", isOn: $showAnalysis)
+                            .toggleStyle(.switch)
+                            .labelsHidden()
+                            .onChange(of: showAnalysis) { _, newValue in
+                                UserDefaults.standard.set(newValue, forKey: Constants.UserDefaultsKey.showAnalysis)
+                            }
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+
+                    Divider().padding(.leading, 14)
+
                     VStack(spacing: 0) {
                         HStack {
                             Text("自动获取选中文字")
@@ -231,6 +232,9 @@ struct PanelSettingsView: View {
                                     if newValue {
                                         SelectedTextReader.requestAccessibility()
                                         checkAccessibility()
+                                        startAccessibilityPolling()
+                                    } else {
+                                        stopAccessibilityPolling()
                                     }
                                 }
                         }
@@ -719,8 +723,14 @@ struct PanelSettingsView: View {
                 }
             }
         }
-        .onAppear { loadSettings() }
-        .onDisappear { stopRecording() }
+        .onAppear {
+            loadSettings()
+            startAccessibilityPolling()
+        }
+        .onDisappear {
+            stopRecording()
+            stopAccessibilityPolling()
+        }
         .onChange(of: isActive) { _, active in
             if !active {
                 stopRecording()
@@ -1054,7 +1064,7 @@ struct PanelSettingsView: View {
             savedKey: savedDeepSeekKey,
             defaultsKey: Constants.UserDefaultsKey.deepSeekAPIKey,
             setState: { deepSeekTestState = $0 },
-            action: { _ = try await DeepSeekService.shared.translateWord("hello") }
+            action: { _ = try await DeepSeekService.shared.testAPI() }
         )
     }
 
@@ -1309,6 +1319,24 @@ struct PanelSettingsView: View {
 
     private func checkAccessibility() {
         accessibilityGranted = SelectedTextReader.isAccessibilityGranted()
+        if accessibilityGranted {
+            stopAccessibilityPolling()
+        }
+    }
+
+    private func startAccessibilityPolling() {
+        stopAccessibilityPolling()
+        guard autoFetchSelectedText, !accessibilityGranted else { return }
+        accessibilityPollTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+            Task { @MainActor in
+                checkAccessibility()
+            }
+        }
+    }
+
+    private func stopAccessibilityPolling() {
+        accessibilityPollTimer?.invalidate()
+        accessibilityPollTimer = nil
     }
 
     private func loadSettings() {
@@ -1337,10 +1365,10 @@ struct PanelSettingsView: View {
             ?? Constants.Defaults.enableMnemonic
         showExamples = UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.showExamples) as? Bool
             ?? Constants.Defaults.showExamples
+        showAnalysis = UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.showAnalysis) as? Bool
+            ?? Constants.Defaults.showAnalysis
         hideOnFocusLost = UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.hideOnFocusLost) as? Bool
             ?? Constants.Defaults.hideOnFocusLost
-        autoCorrect = UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.autoCorrect) as? Bool
-            ?? Constants.Defaults.autoCorrect
         autoFetchSelectedText = UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.autoFetchSelectedText) as? Bool
             ?? Constants.Defaults.autoFetchSelectedText
         checkAccessibility()
@@ -1388,7 +1416,7 @@ struct PanelSettingsView: View {
 
     private func updateCacheSize() {
         let counts = CacheService.shared.cacheCounts()
-        cacheSizeText = "翻译 \(counts.translation) 条 / 音频 \(counts.tts) 条"
+        cacheSizeText = "翻译 \(counts.translation) 条 / 句子 \(counts.sentence) 条 / 音频 \(counts.tts) 条"
     }
 
     private func loadShortcutText() -> String {

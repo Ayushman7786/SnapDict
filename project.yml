@@ -10,6 +10,9 @@ packages:
   HotKey:
     url: https://github.com/soffes/HotKey
     from: 0.2.1
+  PartialJSON:
+    url: https://github.com/itruf/PartialJSON
+    from: 0.0.2
 
 targets:
   SnapDict:
@@ -33,5 +36,6 @@ targets:
         SWIFT_STRICT_CONCURRENCY: complete
     dependencies:
       - package: HotKey
+      - package: PartialJSON
     entitlements:
       path: SnapDict/SnapDict.entitlements
