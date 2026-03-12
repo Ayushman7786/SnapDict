@@ -175,11 +175,7 @@ struct TranslationContentView: View {
         .onChange(of: resetID) { _, _ in
             resetState()
             if isActive { isInputFocused = true }
-            if let text = initialQuery, !text.isEmpty {
-                query = text
-                initialQuery = nil
-                performTranslation()
-            }
+            // 不在此触发 performTranslation，由 onChange(of: initialQuery) 统一处理
         }
         .onChange(of: initialQuery) { _, newValue in
             if let text = newValue, !text.isEmpty {
@@ -238,8 +234,8 @@ struct TranslationContentView: View {
                 )
                 .frame(width: 120)
                 .offset(x: shimmerPhase)
-                .mask { content() }
             )
+            .mask { content() }
     }
 
     @ViewBuilder
@@ -701,6 +697,7 @@ struct TranslationContentView: View {
 
         PanelManager.shared.updatePanelWidth(for: inputType)
 
+        translationTask?.cancel()
         translationTask = Task {
             switch inputType {
             case .word:
@@ -729,6 +726,10 @@ struct TranslationContentView: View {
                                 )
                                 partialWord = nil
                                 isSaved = WordBookManager.shared.isWordSaved(result!.word)
+                                // 如果在流式过程中已收藏，用完整数据更新数据库
+                                if isSaved {
+                                    try? WordBookManager.shared.saveWord(from: result!)
+                                }
                             }
                         } else {
                             partialWord = partial
@@ -829,7 +830,7 @@ struct TranslationContentView: View {
         let engine = Constants.TTSEngine(rawValue: engineRaw) ?? .system
 
         isSpeaking = true
-        Task {
+        Task { @MainActor in
             defer { isSpeaking = false }
             switch engine {
             case .system:

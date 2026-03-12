@@ -133,6 +133,7 @@ enum Constants {
         static let byteDanceTTSAPIKey = "byteDanceTTSAPIKey"
         static let ttsFallbackToSystem = "ttsFallbackToSystem"
         static let byteDanceTTSVoice = "byteDanceTTSVoice"
+        static let ttsVolume = "ttsVolume"
         static let hideOnFocusLost = "hideOnFocusLost"
         static let autoFetchSelectedText = "autoFetchSelectedText"
         static let pushRandomMode = "pushRandomMode"
@@ -151,6 +152,7 @@ enum Constants {
         static let showExamples = true
         static let showAnalysis = true
         static let ttsFallbackToSystem = true
+        static let ttsVolume: Float = 1.0
         static let hideOnFocusLost = true
         static let autoFetchSelectedText = false
         static let pushMode: PushMode = .text

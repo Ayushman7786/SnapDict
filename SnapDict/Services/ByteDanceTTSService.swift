@@ -5,7 +5,8 @@ import AVFoundation
 actor ByteDanceTTSService {
     static let shared = ByteDanceTTSService()
 
-    private var player: AVAudioPlayer?
+    private var engine: AVAudioEngine?
+    private var playerNode: AVAudioPlayerNode?
 
     private init() {}
 
@@ -111,21 +112,55 @@ actor ByteDanceTTSService {
     }
 
     private func playAudio(_ data: Data) async throws {
-        player?.stop()
+        stopEngine()
 
-        let audioPlayer = try AVAudioPlayer(data: data)
-        self.player = audioPlayer
-        audioPlayer.play()
+        // AVAudioFile 需要文件路径，写临时文件
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("snapdict_tts.mp3")
+        try data.write(to: tempURL)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
 
-        while audioPlayer.isPlaying {
-            try await Task.sleep(for: .milliseconds(100))
+        let audioFile = try AVAudioFile(forReading: tempURL)
+        let format = audioFile.processingFormat
+
+        // 读取用户设置的线性音量比例（0.5~3.0），转换为 dB 增益
+        let volumeScale = UserDefaults.standard.object(forKey: Constants.UserDefaultsKey.ttsVolume) as? Float
+            ?? Constants.Defaults.ttsVolume
+        let gainDB = 20.0 * log10(volumeScale)
+
+        let engine = AVAudioEngine()
+        let playerNode = AVAudioPlayerNode()
+        let eqNode = AVAudioUnitEQ()
+        // 全频段整体增益
+        eqNode.globalGain = gainDB
+
+        engine.attach(playerNode)
+        engine.attach(eqNode)
+        engine.connect(playerNode, to: eqNode, format: format)
+        engine.connect(eqNode, to: engine.mainMixerNode, format: format)
+        try engine.start()
+        self.engine = engine
+        self.playerNode = playerNode
+
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            playerNode.scheduleFile(audioFile, at: nil, completionCallbackType: .dataPlayedBack) { _ in
+                continuation.resume()
+            }
+            playerNode.play()
         }
+
+        stopEngine()
+    }
+
+    private func stopEngine() {
+        playerNode?.stop()
+        engine?.stop()
+        playerNode = nil
+        engine = nil
     }
 
     /// 停止当前播放
     func stop() {
-        player?.stop()
-        player = nil
+        stopEngine()
     }
 
     enum TTSError: LocalizedError {

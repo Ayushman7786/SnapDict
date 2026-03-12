@@ -12,6 +12,25 @@ final class WordBookManager {
 
     func setup(container: ModelContainer) {
         self.modelContainer = container
+        backfillEmptyTranslations()
+    }
+
+    /// 从翻译缓存回填 translation 为空的单词本记录（修复流式收藏时数据不完整的问题）
+    private func backfillEmptyTranslations() {
+        guard let container = modelContainer else { return }
+        let context = container.mainContext
+        let descriptor = FetchDescriptor<WordEntry>(
+            predicate: #Predicate { $0.translation == "" }
+        )
+        guard let entries = try? context.fetch(descriptor), !entries.isEmpty else { return }
+        for entry in entries {
+            if let cached = CacheService.shared.getCachedTranslation(for: entry.word) {
+                entry.translation = cached.translation
+                if entry.phonetic.isEmpty { entry.phonetic = cached.phonetic }
+                if entry.examples.isEmpty { entry.examples = cached.examples }
+            }
+        }
+        try? context.save()
     }
 
     @discardableResult
